@@ -1,6 +1,7 @@
 from enum import Enum as PythonEnum
 
-class UserRole(str, PythonEnum):
+
+class UserRole(PythonEnum):
     USER = "user"
     ADMIN = "admin"
-
+    REVIEWER = "reviewer"
