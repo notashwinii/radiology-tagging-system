@@ -12,7 +12,7 @@ class User(CommonModel):
 	password = Column(String)
 	first_name = Column(String, nullable=True)
 	last_name = Column(String, nullable=True)
-	role = Column(Enum(UserRole), default=UserRole.USER)
+	role = Column(Enum(UserRole), default=UserRole.USER, nullable=False)
 
 	def __repr__(self):
 		return f"{self.email}"
