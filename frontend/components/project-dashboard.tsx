@@ -78,6 +78,7 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
   // Dialog states
   const [showInviteUser, setShowInviteUser] = useState(false)
   const [showUploadImage, setShowUploadImage] = useState(false)
+  const [showCreateFolder, setShowCreateFolder] = useState(false)
   
   // Form states
   const [inviteEmail, setInviteEmail] = useState('')
@@ -88,6 +89,8 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
   const [assignedUserId, setAssignedUserId] = useState("")
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null)
   const [folders, setFolders] = useState<Folder[]>([])
+  const [newFolderName, setNewFolderName] = useState('')
+  const [newFolderDescription, setNewFolderDescription] = useState('')
   
   // Filter states
   const [filterByFolder, setFilterByFolder] = useState<number | null>(null)
@@ -315,33 +318,51 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
   }
 
   const handleImageClick = (imageId: number) => {
-    router.push(`/images/${imageId}`)
+    router.push(`/dicom-viewer/${imageId}`)
   }
 
   const handleAssignFolder = async () => {
-    if (!selectedFolderForAssignment || !folderAssignmentUserId || !project) return
-
+    if (!selectedFolderForAssignment || !folderAssignmentUserId) return
+    
     try {
-      if (selectedFolderForAssignment.id === -1) {
-        // Assign unknown images
-        await api.assignUnknownImages(project.id, parseInt(folderAssignmentUserId))
-      } else {
-        // Assign folder images
-        await api.assignFolderImages(selectedFolderForAssignment.id, parseInt(folderAssignmentUserId))
-      }
-      
+      await api.assignFolderImages(
+        selectedFolderForAssignment.id,
+        parseInt(folderAssignmentUserId)
+      )
       setShowFolderAssignment(false)
       setSelectedFolderForAssignment(null)
       setFolderAssignmentUserId("")
-      
-      // Reload images
-      const imagesData = await api.getImages(project.id, selectedFolderId || undefined)
+      // Reload images to show updated assignments
+      const imagesData = await api.getImages(project!.id)
       setImages(imagesData)
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message)
       } else {
         setError("Failed to assign folder")
+      }
+    }
+  }
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim() || !project) return
+    
+    try {
+      const newFolder = await api.createFolder({
+        name: newFolderName.trim(),
+        description: newFolderDescription.trim() || undefined,
+        project_id: project.id
+      })
+      setFolders([...folders, newFolder])
+      setSelectedFolderId(newFolder.id)
+      setShowCreateFolder(false)
+      setNewFolderName('')
+      setNewFolderDescription('')
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message)
+      } else {
+        setError("Failed to create folder")
       }
     }
   }
@@ -674,9 +695,10 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
                                 </div>
                                 <ImageEditor 
                                   image={image} 
-                                  onUpdate={handleImageUpdate}
-                                  onDelete={handleImageDelete}
-                                  allUsers={allUsers}
+                                  projectMembers={project?.members || []}
+                                  folders={folders}
+                                  onImageUpdate={handleImageUpdate}
+                                  onImageDelete={handleImageDelete}
                                 />
                               </div>
                               <div className="text-sm font-medium mb-1">{image.filename}</div>
@@ -816,7 +838,13 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
 
             <div>
               <Label htmlFor="folder">Folder (Optional)</Label>
-              <Select value={selectedFolderId?.toString() || "none"} onValueChange={(value) => setSelectedFolderId(value === "none" ? null : parseInt(value))}>
+              <Select value={selectedFolderId?.toString() || "none"} onValueChange={(value) => {
+                if (value === "create") {
+                  setShowCreateFolder(true)
+                } else {
+                  setSelectedFolderId(value === "none" ? null : parseInt(value))
+                }
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select folder" />
                 </SelectTrigger>
@@ -827,6 +855,10 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
                       {folder.name}
                     </SelectItem>
                   ))}
+                  <SelectItem value="create" className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Create Folder
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -988,6 +1020,46 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
             </Button>
             <Button onClick={handleBulkExport} disabled={exporting}>
               {exporting ? 'Exporting...' : 'Export'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Folder Dialog */}
+      <Dialog open={showCreateFolder} onOpenChange={setShowCreateFolder}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+            <DialogDescription>
+              Create a new folder to organize your images.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="folder-name">Folder Name</Label>
+              <Input
+                id="folder-name"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="Enter folder name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="folder-description">Description (Optional)</Label>
+              <Input
+                id="folder-description"
+                value={newFolderDescription}
+                onChange={(e) => setNewFolderDescription(e.target.value)}
+                placeholder="Enter folder description"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateFolder(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateFolder} disabled={!newFolderName.trim()}>
+              Create Folder
             </Button>
           </DialogFooter>
         </DialogContent>
