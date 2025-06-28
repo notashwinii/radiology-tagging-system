@@ -21,9 +21,11 @@ class Project(CommonModel):
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     owner_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    workspace_id = Column(Integer, ForeignKey('workspaces.id'), nullable=False)
     
     # Relationships
     owner = relationship("User", foreign_keys=[owner_id], back_populates="owned_projects")
+    workspace = relationship("Workspace", back_populates="projects")
     members = relationship("User", secondary=project_users, back_populates="projects")
     images = relationship("Image", back_populates="project")
     folders = relationship("Folder", back_populates="project")

@@ -11,7 +11,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!isLoading) {
       if (user) {
-        router.push('/dashboard')
+        router.push('/home')
       } else {
         router.push('/login')
       }
@@ -19,9 +19,9 @@ export default function HomePage() {
   }, [user, isLoading, router])
 
   return (
-    <div className="min-h-screen bg-primary flex items-center justify-center">
+    <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-center">
-        <div className="text-lg text-primary">Loading...</div>
+        <div className="text-lg text-foreground">Loading...</div>
       </div>
     </div>
   )

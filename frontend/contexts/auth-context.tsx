@@ -17,7 +17,7 @@ interface AuthContextType {
   user: User | null
   login: (email: string, password: string) => Promise<void>
   register: (userData: { email: string; password: string; first_name?: string; last_name?: string }) => Promise<void>
-  logout: () => void
+  logout: (router?: any) => void
   isLoading: boolean
 }
 
@@ -101,10 +101,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const logout = () => {
+  const logout = (router?: any) => {
     setUser(null)
     localStorage.removeItem('access-token')
     localStorage.removeItem('refresh-token')
+    
+    // Redirect to login page if router is provided
+    if (router) {
+      router.push('/login')
+    }
   }
 
   return <AuthContext.Provider value={{ user, login, register, logout, isLoading }}>{children}</AuthContext.Provider>

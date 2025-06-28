@@ -8,7 +8,7 @@ class ProjectBase(BaseModel):
     description: Optional[str] = None
 
 class ProjectCreate(ProjectBase):
-    pass
+    workspace_id: int
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None

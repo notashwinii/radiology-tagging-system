@@ -54,9 +54,26 @@ def format_project_response(project: ProjectModel.Project, db: Session) -> Dict[
 
 def create_project(db: Session, project: ProjectCreate, current_user: User) -> Dict[str, Any]:
     """Create a new project"""
+    # Check if user is a member of the workspace
+    from app.models.workspace import workspace_members
+    
+    member_role = db.execute(
+        workspace_members.select().where(
+            workspace_members.c.workspace_id == project.workspace_id,
+            workspace_members.c.user_id == current_user.id
+        )
+    ).first()
+    
+    if not member_role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You must be a member of the workspace to create projects"
+        )
+    
     db_project = ProjectModel.Project(
         name=project.name,
         description=project.description,
+        workspace_id=project.workspace_id,
         owner_id=current_user.id
     )
     db.add(db_project)

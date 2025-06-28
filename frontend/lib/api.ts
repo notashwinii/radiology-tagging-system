@@ -29,10 +29,36 @@ export interface User {
   updated_at: string
 }
 
+// Workspace types
+export interface Workspace {
+  id: number
+  name: string
+  description?: string
+  owner_id: number
+  created_at: string
+  updated_at?: string
+}
+
+export interface WorkspaceCreate {
+  name: string
+  description?: string
+}
+
+export interface WorkspaceUpdate {
+  name?: string
+  description?: string
+}
+
+export interface WorkspaceMemberInvite {
+  email: string
+  role: string
+}
+
 interface Project {
   id: number
   name: string
   description?: string
+  workspace_id: number
   owner_id: number
   owner: User
   members: ProjectMember[]
@@ -52,6 +78,7 @@ interface ProjectMember {
 interface ProjectCreate {
   name: string
   description?: string
+  workspace_id: number
 }
 
 interface ProjectInvite {
@@ -190,8 +217,12 @@ export const api = {
     })
   },
 
-  async getProjects(): Promise<Project[]> {
-    return apiRequest<Project[]>('/projects/')
+  async getProjects(workspaceId?: number): Promise<Project[]> {
+    let url = '/projects/'
+    if (workspaceId) {
+      url += `?workspace_id=${workspaceId}`
+    }
+    return apiRequest<Project[]>(url)
   },
 
   async getProject(projectId: number): Promise<Project> {
@@ -483,8 +514,7 @@ export const api = {
   async downloadDicomFile(imageId: number): Promise<Blob> {
     const token = localStorage.getItem('access-token')
     
-    const response = await fetch(`${API_BASE_URL}/images/download/${imageId}`, {
-      method: 'GET',
+    const response = await fetch(`${API_BASE_URL}/images/${imageId}/download`, {
       headers: {
         ...(token && { Authorization: `Bearer ${token}` }),
       },
@@ -496,5 +526,51 @@ export const api = {
     }
 
     return response.blob()
+  },
+
+  // Workspace management
+  async getWorkspaces(): Promise<Workspace[]> {
+    return apiRequest<Workspace[]>('/workspaces/')
+  },
+
+  async getWorkspace(workspaceId: number): Promise<Workspace> {
+    return apiRequest<Workspace>(`/workspaces/${workspaceId}`)
+  },
+
+  async createWorkspace(workspaceData: WorkspaceCreate): Promise<Workspace> {
+    return apiRequest<Workspace>('/workspaces/', {
+      method: 'POST',
+      body: JSON.stringify(workspaceData),
+    })
+  },
+
+  async updateWorkspace(workspaceId: number, workspaceData: WorkspaceUpdate): Promise<Workspace> {
+    return apiRequest<Workspace>(`/workspaces/${workspaceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(workspaceData),
+    })
+  },
+
+  async deleteWorkspace(workspaceId: number): Promise<void> {
+    return apiRequest<void>(`/workspaces/${workspaceId}`, {
+      method: 'DELETE',
+    })
+  },
+
+  async inviteUserToWorkspace(workspaceId: number, invite: WorkspaceMemberInvite): Promise<void> {
+    return apiRequest<void>(`/workspaces/${workspaceId}/invite`, {
+      method: 'POST',
+      body: JSON.stringify(invite),
+    })
+  },
+
+  async removeUserFromWorkspace(workspaceId: number, userId: number): Promise<void> {
+    return apiRequest<void>(`/workspaces/${workspaceId}/members/${userId}`, {
+      method: 'DELETE',
+    })
+  },
+
+  async getWorkspaceMembers(workspaceId: number): Promise<any[]> {
+    return apiRequest<any[]>(`/workspaces/${workspaceId}/members`)
   },
 } 

@@ -23,6 +23,8 @@ class User(CommonModel):
 	annotations = relationship("Annotation", foreign_keys="Annotation.user_id", back_populates="user")
 	reviewed_annotations = relationship("Annotation", foreign_keys="Annotation.reviewer_id")
 	annotation_history = relationship("AnnotationHistory", foreign_keys="AnnotationHistory.changed_by")
+	owned_workspaces = relationship("Workspace", foreign_keys="Workspace.owner_id", back_populates="owner")
+	workspaces = relationship("Workspace", secondary="workspace_members", back_populates="members")
 
 	def __repr__(self):
 		return f"{self.email}"

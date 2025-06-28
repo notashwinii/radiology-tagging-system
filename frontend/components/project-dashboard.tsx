@@ -62,24 +62,24 @@ interface User {
   role: string
 }
 
-export function ProjectDashboard() {
-  const { user, logout } = useAuth()
+interface ProjectDashboardProps {
+  projectId?: number
+}
+
+export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
+  const { user } = useAuth()
   const router = useRouter()
-  const [projects, setProjects] = useState<Project[]>([])
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [project, setProject] = useState<Project | null>(null)
   const [images, setImages] = useState<Image[]>([])
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
   
   // Dialog states
-  const [showCreateProject, setShowCreateProject] = useState(false)
   const [showInviteUser, setShowInviteUser] = useState(false)
   const [showUploadImage, setShowUploadImage] = useState(false)
   
   // Form states
-  const [newProjectName, setNewProjectName] = useState('')
-  const [newProjectDescription, setNewProjectDescription] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('member')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -102,50 +102,44 @@ export function ProjectDashboard() {
   const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
-    loadDashboard()
-  }, [])
+    if (projectId) {
+      loadProject()
+    }
+  }, [projectId])
 
-  const loadDashboard = async () => {
+  const loadProject = async () => {
+    if (!projectId) return
+    
     try {
       setIsLoading(true)
-      const [projectsData, usersData] = await Promise.all([
-        api.getProjects(),
-        api.getAllUsers()
+      const [projectData, usersData, foldersData] = await Promise.all([
+        api.getProject(projectId),
+        api.getAllUsers(),
+        api.getProjectFolders(projectId)
       ])
-      setProjects(projectsData)
+      setProject(projectData)
       setAllUsers(usersData)
+      setFolders(foldersData)
+      
+      // Load images for the project
+      const imagesData = await api.getImages(projectId)
+      setImages(imagesData)
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message)
       } else {
-        setError("Failed to load dashboard")
+        setError("Failed to load project")
       }
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleCreateProject = async () => {
-    try {
-      const project = await api.createProject({ name: newProjectName, description: newProjectDescription })
-      setProjects([...projects, project])
-      setShowCreateProject(false)
-      setNewProjectName('')
-      setNewProjectDescription('')
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message)
-      } else {
-        setError("Failed to create project")
-      }
-    }
-  }
-
   const handleInviteUser = async () => {
-    if (!selectedProject) return
+    if (!project) return
     
     try {
-      await api.inviteUserToProject(selectedProject.id, {
+      await api.inviteUserToProject(project.id, {
         email: inviteEmail,
         role: inviteRole
       })
@@ -153,9 +147,8 @@ export function ProjectDashboard() {
       setInviteEmail("")
       setInviteRole("member")
       // Reload project to get updated members
-      const updatedProject = await api.getProject(selectedProject.id)
-      setSelectedProject(updatedProject)
-      setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p))
+      const updatedProject = await api.getProject(project.id)
+      setProject(updatedProject)
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message)
@@ -166,14 +159,13 @@ export function ProjectDashboard() {
   }
 
   const handleRemoveUser = async (userId: number) => {
-    if (!selectedProject) return
+    if (!project) return
     
     try {
-      await api.removeUserFromProject(selectedProject.id, userId)
+      await api.removeUserFromProject(project.id, userId)
       // Reload project to get updated members
-      const updatedProject = await api.getProject(selectedProject.id)
-      setSelectedProject(updatedProject)
-      setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p))
+      const updatedProject = await api.getProject(project.id)
+      setProject(updatedProject)
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message)
@@ -185,12 +177,12 @@ export function ProjectDashboard() {
 
   const handleUploadImage = async () => {
     if (uploadMode === 'single') {
-      if (!selectedFile || !selectedProject) return
+      if (!selectedFile || !project) return
       
       try {
         const image = await api.uploadImage(
           selectedFile, 
-          selectedProject.id,
+          project.id,
           selectedFolderId || undefined,
           assignedUserId ? parseInt(assignedUserId) : undefined
         )
@@ -207,13 +199,12 @@ export function ProjectDashboard() {
         }
       }
     } else {
-      // Bulk upload
-      if (selectedFiles.length === 0 || !selectedProject) return
+      if (selectedFiles.length === 0 || !project) return
       
       try {
         const uploadedImages = await api.bulkUploadImages(
           selectedFiles,
-          selectedProject.id,
+          project.id,
           selectedFolderId || undefined,
           assignedUserId ? parseInt(assignedUserId) : undefined
         )
@@ -243,23 +234,10 @@ export function ProjectDashboard() {
   const getFilteredImages = () => {
     let filtered = images
 
-    // First filter by selected folder (if any)
-    if (selectedFolderId !== null) {
-      if (selectedFolderId === -1) {
-        // Unknown (no folder)
-        filtered = filtered.filter(img => !img.folder_id)
-      } else if (selectedFolderId === -2) {
-        // Assigned to Me
-        filtered = filtered.filter(img => img.assigned_user_id === user?.id)
-      } else {
-        filtered = filtered.filter(img => img.folder_id === selectedFolderId)
-      }
-    }
-
-    // Then apply additional filters
+    // Filter by folder
     if (filterByFolder !== null) {
       if (filterByFolder === -1) {
-        // Unknown (no folder)
+        // Unknown folder (no folder assigned)
         filtered = filtered.filter(img => !img.folder_id)
       } else {
         filtered = filtered.filter(img => img.folder_id === filterByFolder)
@@ -272,7 +250,7 @@ export function ProjectDashboard() {
         // Unassigned
         filtered = filtered.filter(img => !img.assigned_user_id)
       } else if (filterByAssignment === -2) {
-        // Assigned to Me
+        // Assigned to me
         filtered = filtered.filter(img => img.assigned_user_id === user?.id)
       } else {
         filtered = filtered.filter(img => img.assigned_user_id === filterByAssignment)
@@ -288,66 +266,39 @@ export function ProjectDashboard() {
   }
 
   const refreshFolders = async () => {
-    if (!selectedProject) return
+    if (!project) return
     try {
-      const projectFolders = await api.getProjectFolders(selectedProject.id)
-      setFolders(projectFolders)
+      const foldersData = await api.getProjectFolders(project.id)
+      setFolders(foldersData)
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message)
-      } else {
-        setError("Failed to refresh folders")
-      }
-    }
-  }
-
-  const handleProjectSelect = async (project: Project) => {
-    setSelectedProject(project)
-    setSelectedFolderId(null) // Reset folder selection when project changes
-    // Reset filters when project changes
-    setFilterByFolder(null)
-    setFilterByAssignment(null)
-    setShowFilters(false)
-    try {
-      const projectImages = await api.getImages(project.id)
-      setImages(projectImages)
-      
-      // Load folders for the project
-      const projectFolders = await api.getProjectFolders(project.id)
-      setFolders(projectFolders)
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message)
-      } else {
-        setError("Failed to load project images")
-      }
+      console.error('Failed to refresh folders:', err)
     }
   }
 
   const handleFolderSelect = async (folderId: number | null) => {
     setSelectedFolderId(folderId)
-    if (!selectedProject) return
+    if (!project) return
     
     try {
-      const folderImages = await api.getImages(selectedProject.id, folderId || undefined)
-      setImages(folderImages)
+      const imagesData = await api.getImages(project.id, folderId || undefined)
+      setImages(imagesData)
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message)
       } else {
-        setError("Failed to load folder images")
+        setError("Failed to load images")
       }
     }
   }
 
   const handleDeleteProject = async (projectId: number) => {
+    if (!confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
+      return
+    }
+
     try {
       await api.deleteProject(projectId)
-      setProjects(projects.filter(p => p.id !== projectId))
-      if (selectedProject?.id === projectId) {
-        setSelectedProject(null)
-        setImages([])
-      }
+      router.push('/home')
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message)
@@ -364,33 +315,28 @@ export function ProjectDashboard() {
   }
 
   const handleImageClick = (imageId: number) => {
-    router.push(`/dicom-viewer/${imageId}`)
+    router.push(`/images/${imageId}`)
   }
 
   const handleAssignFolder = async () => {
-    if (!selectedFolderForAssignment || !folderAssignmentUserId) return
-    
+    if (!selectedFolderForAssignment || !folderAssignmentUserId || !project) return
+
     try {
-      let result
       if (selectedFolderForAssignment.id === -1) {
-        // Unknown assignment
-        result = await api.assignUnknownImages(selectedProject!.id, parseInt(folderAssignmentUserId))
+        // Assign unknown images
+        await api.assignUnknownImages(project.id, parseInt(folderAssignmentUserId))
       } else {
-        // Specific folder assignment
-        result = await api.assignFolderImages(selectedFolderForAssignment.id, parseInt(folderAssignmentUserId))
+        // Assign folder images
+        await api.assignFolderImages(selectedFolderForAssignment.id, parseInt(folderAssignmentUserId))
       }
-      
-      // Refresh images to show updated assignments
-      const projectImages = await api.getImages(selectedProject!.id)
-      setImages(projectImages)
       
       setShowFolderAssignment(false)
       setSelectedFolderForAssignment(null)
       setFolderAssignmentUserId("")
       
-      // Show success message
-      setError("")
-      // You could add a success toast here
+      // Reload images
+      const imagesData = await api.getImages(project.id, selectedFolderId || undefined)
+      setImages(imagesData)
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message)
@@ -402,25 +348,23 @@ export function ProjectDashboard() {
 
   const handleBulkExport = async () => {
     if (selectedImagesForExport.length === 0) return
-    
+
     try {
       setExporting(true)
       const blob = await api.bulkExportAnnotations(selectedImagesForExport)
       
-      // Download the ZIP file
+      // Create download link
       const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `annotations_export_${new Date().toISOString().split('T')[0]}.zip`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `annotations_${new Date().toISOString().split('T')[0]}.zip`
+      document.body.appendChild(a)
+      a.click()
       window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
       
       setShowBulkExport(false)
       setSelectedImagesForExport([])
-      setError("")
-      // You could add a success toast here
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message)
@@ -442,9 +386,9 @@ export function ProjectDashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-primary flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="text-lg text-primary">Loading dashboard...</div>
+          <div className="text-lg text-foreground">Loading project...</div>
         </div>
       </div>
     )
@@ -452,7 +396,7 @@ export function ProjectDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-primary flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="text-red-500 text-lg mb-4">{error}</div>
           <Button onClick={() => window.location.reload()} variant="outline">
@@ -463,767 +407,591 @@ export function ProjectDashboard() {
     )
   }
 
-  return (
-    <div className="min-h-screen bg-primary flex">
-      {/* Sidebar */}
-      <div className="w-80 bg-secondary border-r border-primary">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold text-primary mb-6">Radiology Tagging System</h1>
-          
-          {/* Project List */}
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-primary">Projects</h2>
-              <Dialog open={showCreateProject} onOpenChange={setShowCreateProject}>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Project
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-elevated">
-                  <DialogHeader>
-                    <DialogTitle>Create New Project</DialogTitle>
-                    <DialogDescription>
-                      Create a new project to organize your DICOM images and annotations.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="project-name">Project Name</Label>
-                      <Input
-                        id="project-name"
-                        value={newProjectName}
-                        onChange={(e) => setNewProjectName(e.target.value)}
-                        placeholder="Enter project name"
-                        className="input"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="project-description">Description (Optional)</Label>
-                      <Input
-                        id="project-description"
-                        value={newProjectDescription}
-                        onChange={(e) => setNewProjectDescription(e.target.value)}
-                        placeholder="Enter project description"
-                        className="input"
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setShowCreateProject(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleCreateProject} disabled={!newProjectName}>
-                      Create Project
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-            
-            <div className="space-y-2">
-              {projects.map((project) => (
-                <div
-                  key={project.id}
-                  className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                    selectedProject?.id === project.id
-                      ? 'bg-accent text-accent-foreground'
-                      : 'bg-tertiary text-primary hover-bg'
-                  }`}
-                  onClick={() => handleProjectSelect(project)}
-                >
-                  <div className="font-medium">{project.name}</div>
-                  {project.description && (
-                    <div className="text-sm text-secondary">{project.description}</div>
-                  )}
-                  <div className="text-xs text-secondary mt-1">
-                    {project.members.length} members
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          {/* User Info */}
-          <div className="border-t border-primary pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-primary">{user?.email}</div>
-                <div className="text-xs text-secondary">{user?.role}</div>
-              </div>
-              <Button variant="ghost" size="sm" onClick={logout}>
-                Logout
-              </Button>
-            </div>
-          </div>
+  if (!project) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg text-foreground">Project not found</div>
         </div>
       </div>
+    )
+  }
 
-      {/* Main Content */}
-      <div className="flex-1 bg-primary">
-        <div className="p-6">
-          {selectedProject ? (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-primary">{selectedProject.name}</h2>
-                  {selectedProject.description && (
-                    <p className="text-secondary mt-1">{selectedProject.description}</p>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  {isProjectOwner(selectedProject) && (
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">{project.name}</h2>
+            {project.description && (
+              <p className="text-muted-foreground mt-1">{project.description}</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            {isProjectOwner(project) && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => handleDeleteProject(project.id)}
+              >
+                Delete Project
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <Tabs defaultValue="images" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="images">Images</TabsTrigger>
+            <TabsTrigger value="members">Members</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="images" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Images</CardTitle>
+                  <div className="flex gap-2">
+                    {selectedImagesForExport.length > 0 && (
+                      <Button
+                        onClick={() => setShowBulkExport(true)}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Archive className="h-4 w-4 mr-2" />
+                        Export {selectedImagesForExport.length} Images
+                      </Button>
+                    )}
                     <Button
-                      variant="destructive"
+                      onClick={() => setShowUploadImage(true)}
                       size="sm"
-                      onClick={() => handleDeleteProject(selectedProject.id)}
                     >
-                      Delete Project
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Images
                     </Button>
-                  )}
+                    <Button
+                      onClick={() => setShowFolderManager(true)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <FolderIcon className="h-4 w-4 mr-2" />
+                      Manage Folders
+                    </Button>
+                  </div>
                 </div>
-              </div>
-
-              <Tabs defaultValue="images" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="images">Images</TabsTrigger>
-                  <TabsTrigger value="members">Members</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="images" className="space-y-4">
-                  <Card className="bg-secondary">
-                    <CardHeader>
-                      <div className="flex justify-between items-center">
-                        <CardTitle className="text-primary">Images</CardTitle>
-                        <div className="flex gap-2">
-                          {selectedImagesForExport.length > 0 && (
-                            <Button
-                              onClick={() => setShowBulkExport(true)}
-                              variant="outline"
-                              size="sm"
-                            >
-                              <Archive className="h-4 w-4 mr-2" />
-                              Export {selectedImagesForExport.length} Images
-                            </Button>
-                          )}
-                          <Button
-                            onClick={() => setShowUploadImage(true)}
-                            size="sm"
-                          >
-                            <Upload className="h-4 w-4 mr-2" />
-                            Upload Images
-                          </Button>
-                          <Button
-                            onClick={() => setShowFolderManager(true)}
-                            variant="outline"
-                            size="sm"
-                          >
-                            <FolderIcon className="h-4 w-4 mr-2" />
-                            Manage Folders
-                          </Button>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="bg-secondary">
-                      {!selectedFolderId ? (
-                        // Show folders view
-                        <div>
-                          <div className="mb-6">
-                            <h3 className="text-lg font-semibold mb-4 text-primary">Folders</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {/* Unknown Folder */}
-                              <div 
-                                className="card hover-bg cursor-pointer"
-                                onClick={() => setSelectedFolderId(-1)}
-                              >
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <FolderOpen className="h-5 w-5 text-blue-400" />
-                                    <span className="font-medium text-primary">Unknown</span>
-                                  </div>
-                                  {isProjectAdmin(selectedProject) && (
-                                    <Button
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setSelectedFolderForAssignment({ id: -1, name: "Unknown", project_id: selectedProject.id } as Folder)
-                                        setShowFolderAssignment(true)
-                                      }}
-                                    >
-                                      <UserPlus className="h-3 w-3" />
-                                    </Button>
-                                  )}
-                                </div>
-                                <div className="text-sm text-secondary">
-                                  {images.filter(img => !img.folder_id).length} images
-                                </div>
-                                <div className="text-xs text-secondary mt-1">
-                                  Images not in any folder
-                                </div>
-                              </div>
-                              
-                              {/* Assigned to Me Folder */}
-                              <div 
-                                className="card hover-bg cursor-pointer bg-blue-900/20 border-blue-500/30"
-                                onClick={() => setSelectedFolderId(-2)}
-                              >
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <UserPlus className="h-5 w-5 text-green-400" />
-                                    <span className="font-medium text-green-400">Assigned to Me</span>
-                                  </div>
-                                </div>
-                                <div className="text-sm text-secondary">
-                                  {images.filter(img => img.assigned_user_id === user?.id).length} images
-                                </div>
-                                <div className="text-xs text-secondary mt-1">
-                                  Images assigned to you
-                                </div>
-                              </div>
-                              
-                              {/* Project Folders */}
-                              {folders.map((folder) => (
-                                <div 
-                                  key={folder.id} 
-                                  className="card hover-bg cursor-pointer"
-                                  onClick={() => setSelectedFolderId(folder.id)}
-                                >
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                      <FolderIcon className="h-5 w-5 text-blue-400" />
-                                      <span className="font-medium text-primary">{folder.name}</span>
-                                    </div>
-                                    {isProjectAdmin(selectedProject) && (
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setSelectedFolderForAssignment(folder)
-                                          setShowFolderAssignment(true)
-                                        }}
-                                      >
-                                        <UserPlus className="h-3 w-3" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                  <div className="text-sm text-secondary">
-                                    {images.filter(img => img.folder_id === folder.id).length} images
-                                  </div>
-                                  {folder.description && (
-                                    <div className="text-xs text-secondary mt-1">
-                                      {folder.description}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                          
-                          {/* All Images Summary */}
-                          <div>
-                            <h3 className="text-lg font-semibold mb-4 text-primary">All Images</h3>
-                            {getFilteredImages().length === 0 ? (
-                              <p className="text-secondary text-center py-8">
-                                {images.length === 0 ? "No images uploaded yet." : "No images match the current filters."}
-                              </p>
-                            ) : (
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {getFilteredImages().map((image) => (
-                                  <div key={image.id} className="card hover-bg">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleImageClick(image.id)}>
-                                        <ImageIcon className="h-4 w-4 text-secondary" />
-                                        <span className="text-sm font-medium text-primary">Image #{image.id}</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <input
-                                          type="checkbox"
-                                          checked={selectedImagesForExport.includes(image.id)}
-                                          onChange={() => toggleImageSelection(image.id)}
-                                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                        />
-                                        <Eye className="h-4 w-4 text-blue-400 cursor-pointer" onClick={() => handleImageClick(image.id)} />
-                                        {isProjectAdmin(selectedProject) && (
-                                          <ImageEditor
-                                            image={image}
-                                            projectMembers={selectedProject.members}
-                                            folders={folders}
-                                            onImageUpdate={handleImageUpdate}
-                                            onImageDelete={handleImageDelete}
-                                          />
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="text-xs text-secondary space-y-1">
-                                      <div>Orthanc ID: {image.orthanc_id}</div>
-                                      <div>Uploaded: {new Date(image.created_at).toLocaleDateString()}</div>
-                                      {image.assigned_user_id && (
-                                        <div className="text-blue-400">
-                                          Assigned to: {allUsers.find(u => u.id === image.assigned_user_id)?.email}
-                                        </div>
-                                      )}
-                                      {image.folder_id && (
-                                        <div className="text-green-400">
-                                          Folder: {folders.find(f => f.id === image.folder_id)?.name || 'Unknown'}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        // Show images in selected folder
-                        <div>
-                          {selectedFolderId !== null && (
-                            <div className="flex items-center gap-2 text-sm text-secondary mb-4">
-                              <span 
-                                className="cursor-pointer hover:text-primary"
-                                onClick={() => setSelectedFolderId(null)}
-                              >
-                                {selectedProject.name}
-                              </span>
-                              <span>/</span>
-                              <span>
-                                {selectedFolderId === -1 ? "Unknown" : 
-                                 selectedFolderId === -2 ? "Assigned to Me" :
-                                 folders.find(f => f.id === selectedFolderId)?.name || "Unknown"}
-                              </span>
-                            </div>
-                          )}
-                          {getFilteredImages().length === 0 ? (
-                            <p className="text-secondary text-center py-8">
-                              {selectedFolderId === -2 
-                                ? (images.filter(img => img.assigned_user_id === user?.id).length === 0 
-                                    ? "No images assigned to you." 
-                                    : "No images match the current filters.")
-                                : (images.filter(img => selectedFolderId === -1 ? !img.folder_id : img.folder_id === selectedFolderId).length === 0 
-                                    ? "No images in this folder." 
-                                    : "No images match the current filters.")
-                              }
-                            </p>
-                          ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {getFilteredImages().map((image) => (
-                                <div key={image.id} className="card hover-bg">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleImageClick(image.id)}>
-                                      <ImageIcon className="h-4 w-4 text-secondary" />
-                                      <span className="text-sm font-medium text-primary">Image #{image.id}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="checkbox"
-                                        checked={selectedImagesForExport.includes(image.id)}
-                                        onChange={() => toggleImageSelection(image.id)}
-                                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                      />
-                                      <Eye className="h-4 w-4 text-blue-400 cursor-pointer" onClick={() => handleImageClick(image.id)} />
-                                      {isProjectAdmin(selectedProject) && (
-                                        <ImageEditor
-                                          image={image}
-                                          projectMembers={selectedProject.members}
-                                          folders={folders}
-                                          onImageUpdate={handleImageUpdate}
-                                          onImageDelete={handleImageDelete}
-                                        />
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="text-xs text-secondary space-y-1">
-                                    <div>Orthanc ID: {image.orthanc_id}</div>
-                                    <div>Uploaded: {new Date(image.created_at).toLocaleDateString()}</div>
-                                    {image.assigned_user_id && (
-                                      <div className="text-blue-400">
-                                        Assigned to: {allUsers.find(u => u.id === image.assigned_user_id)?.email}
-                                      </div>
-                                    )}
-                                    {image.folder_id && (
-                                      <div className="text-green-400">
-                                        Folder: {folders.find(f => f.id === image.folder_id)?.name || 'Unknown'}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                  
-                  {/* Upload Image Dialog */}
-                  <Dialog open={showUploadImage} onOpenChange={setShowUploadImage}>
-                    <DialogContent className="bg-elevated">
-                      <DialogHeader>
-                        <DialogTitle>Upload DICOM Image</DialogTitle>
-                        <DialogDescription>
-                          Upload a DICOM image to this project. Only .dcm and .dicom files are supported.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label>Upload Mode</Label>
-                          <div className="flex gap-2 mt-2">
-                            <Button
-                              type="button"
-                              variant={uploadMode === 'single' ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => setUploadMode('single')}
-                            >
-                              Single File
-                            </Button>
-                            <Button
-                              type="button"
-                              variant={uploadMode === 'bulk' ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => setUploadMode('bulk')}
-                            >
-                              Multiple Files
-                            </Button>
-                          </div>
-                        </div>
-
-                        {uploadMode === 'single' ? (
-                          <div>
-                            <Label htmlFor="file-upload">Select DICOM File</Label>
-                            <Input
-                              id="file-upload"
-                              type="file"
-                              accept=".dcm,.dicom"
-                              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                              className="input"
-                            />
-                          </div>
-                        ) : (
-                          <div>
-                            <Label htmlFor="files-upload">Select DICOM Files</Label>
-                            <Input
-                              id="files-upload"
-                              type="file"
-                              accept=".dcm,.dicom"
-                              multiple
-                              onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
-                              className="input"
-                            />
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="assigned-user">Assign to (Optional)</Label>
-                            <Select value={assignedUserId} onValueChange={setAssignedUserId}>
-                              <SelectTrigger className="input">
-                                <SelectValue placeholder="Select a team member" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {selectedProject.members.map((member) => (
-                                  <SelectItem key={member.user_id} value={member.user_id.toString()}>
-                                    {member.first_name} {member.last_name} ({member.email})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div>
-                            <Label htmlFor="folder-select">Folder (Optional)</Label>
-                            <Select 
-                              value={selectedFolderId?.toString() || "root"} 
-                              onValueChange={(value) => setSelectedFolderId(value === "root" ? null : parseInt(value))}
-                            >
-                              <SelectTrigger className="input">
-                                <SelectValue placeholder="Select a folder" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="root">Root Level</SelectItem>
-                                {folders.map((folder) => (
-                                  <SelectItem key={folder.id} value={folder.id.toString()}>
-                                    {folder.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowUploadImage(false)}>
-                          Cancel
-                        </Button>
-                        <Button 
-                          onClick={handleUploadImage} 
-                          disabled={
-                            (uploadMode === 'single' && !selectedFile) || 
-                            (uploadMode === 'bulk' && selectedFiles.length === 0)
-                          }
+              </CardHeader>
+              <CardContent>
+                {!selectedFolderId ? (
+                  // Show folders view
+                  <div>
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold mb-4">Folders</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {/* Unknown Folder */}
+                        <div 
+                          className="card hover:bg-accent cursor-pointer"
+                          onClick={() => handleFolderSelect(-1)}
                         >
-                          Upload {uploadMode === 'bulk' ? 'Images' : 'Image'}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                  
-                  {/* Folder Management Dialog */}
-                  <Dialog open={showFolderManager} onOpenChange={(open) => {
-                    setShowFolderManager(open)
-                    if (!open) {
-                      refreshFolders()
-                    }
-                  }}>
-                    <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-elevated">
-                      <DialogHeader>
-                        <DialogTitle>Manage Project Folders</DialogTitle>
-                        <DialogDescription>
-                          Create, edit, and organize folders for this project.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <FolderManager
-                        projectId={selectedProject.id}
-                        onFolderSelect={(folderId) => {
-                          setSelectedFolderId(folderId)
-                          setShowFolderManager(false)
-                          refreshFolders()
-                        }}
-                        selectedFolderId={selectedFolderId}
-                      />
-                    </DialogContent>
-                  </Dialog>
-                  
-                  {/* Folder Assignment Dialog */}
-                  <Dialog open={showFolderAssignment} onOpenChange={setShowFolderAssignment}>
-                    <DialogContent className="bg-elevated">
-                      <DialogHeader>
-                        <DialogTitle>Assign Folder to User</DialogTitle>
-                        <DialogDescription>
-                          Assign all images in "{selectedFolderForAssignment?.name}" to a team member.
-                        </DialogDescription>
-                      </DialogHeader>
-                      
-                      {error && (
-                        <Alert variant="destructive">
-                          <AlertDescription>{error}</AlertDescription>
-                        </Alert>
-                      )}
-                      
-                      <div className="space-y-4">
-                        <div>
-                          <Label>Folder</Label>
-                          <Input 
-                            value={selectedFolderForAssignment?.name || ""} 
-                            disabled 
-                            className="input"
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label>Number of Images</Label>
-                          <Input 
-                            value={
-                              selectedFolderForAssignment?.id === -1 
-                                ? images.filter(img => !img.folder_id).length.toString()
-                                : images.filter(img => img.folder_id === selectedFolderForAssignment?.id).length.toString()
-                            } 
-                            disabled 
-                            className="input"
-                          />
-                        </div>
-                        
-                        <div>
-                          <Label htmlFor="folder-assign-user">Assign to</Label>
-                          <Select value={folderAssignmentUserId} onValueChange={setFolderAssignmentUserId}>
-                            <SelectTrigger className="input">
-                              <SelectValue placeholder="Select a team member" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {selectedProject.members.map((member) => (
-                                <SelectItem key={member.user_id} value={member.user_id.toString()}>
-                                  {member.first_name} {member.last_name} ({member.email})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowFolderAssignment(false)}>
-                          Cancel
-                        </Button>
-                        <Button 
-                          onClick={handleAssignFolder} 
-                          disabled={!folderAssignmentUserId}
-                        >
-                          Assign Folder
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                  
-                  {/* Bulk Export Dialog */}
-                  <Dialog open={showBulkExport} onOpenChange={setShowBulkExport}>
-                    <DialogContent className="bg-elevated">
-                      <DialogHeader>
-                        <DialogTitle>Bulk Export Annotations</DialogTitle>
-                        <DialogDescription>
-                          Export annotations for {selectedImagesForExport.length} selected images as a ZIP file.
-                        </DialogDescription>
-                      </DialogHeader>
-                      
-                      {error && (
-                        <Alert variant="destructive">
-                          <AlertDescription>{error}</AlertDescription>
-                        </Alert>
-                      )}
-                      
-                      <div className="space-y-4">
-                        <div>
-                          <Label>Selected Images</Label>
-                          <div className="bg-tertiary border border-primary rounded p-3 max-h-40 overflow-y-auto">
-                            {selectedImagesForExport.map(imageId => {
-                              const image = images.find(img => img.id === imageId)
-                              return (
-                                <div key={imageId} className="text-sm text-primary">
-                                  • Image #{imageId} {image?.orthanc_id && `(Orthanc: ${image.orthanc_id})`}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <Label>Export Format</Label>
-                          <div className="text-sm text-secondary mt-1">
-                            ZIP file containing individual JSON files for each image's annotations
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setShowBulkExport(false)}>
-                          Cancel
-                        </Button>
-                        <Button 
-                          onClick={handleBulkExport} 
-                          disabled={exporting || selectedImagesForExport.length === 0}
-                        >
-                          {exporting ? 'Exporting...' : 'Export Annotations'}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </TabsContent>
-
-                <TabsContent value="members" className="space-y-4">
-                  <Card className="bg-secondary">
-                    <CardHeader>
-                      <div className="flex justify-between items-center">
-                        <CardTitle className="text-primary">Project Members</CardTitle>
-                        {isProjectAdmin(selectedProject) && (
-                          <Dialog open={showInviteUser} onOpenChange={setShowInviteUser}>
-                            <DialogTrigger asChild>
-                              <Button>
-                                <UserPlus className="h-4 w-4 mr-2" />
-                                Invite User
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="bg-elevated">
-                              <DialogHeader>
-                                <DialogTitle>Invite User to Project</DialogTitle>
-                                <DialogDescription>
-                                  Invite a user to join this project by their email address.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="space-y-4">
-                                <div>
-                                  <Label htmlFor="invite-email">Email Address</Label>
-                                  <Input
-                                    id="invite-email"
-                                    type="email"
-                                    value={inviteEmail}
-                                    onChange={(e) => setInviteEmail(e.target.value)}
-                                    placeholder="user@example.com"
-                                    className="input"
-                                  />
-                                </div>
-                                <div>
-                                  <Label htmlFor="invite-role">Role</Label>
-                                  <Select value={inviteRole} onValueChange={setInviteRole}>
-                                    <SelectTrigger className="input">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="member">Member</SelectItem>
-                                      <SelectItem value="admin">Admin</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-                              <DialogFooter>
-                                <Button variant="outline" onClick={() => setShowInviteUser(false)}>
-                                  Cancel
-                                </Button>
-                                <Button onClick={handleInviteUser} disabled={!inviteEmail}>
-                                  Send Invitation
-                                </Button>
-                              </DialogFooter>
-                            </DialogContent>
-                          </Dialog>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="bg-secondary">
-                      <div className="space-y-3">
-                        {selectedProject.members.map((member) => (
-                          <div key={member.user_id} className="flex justify-between items-center p-3 border border-primary rounded-lg bg-tertiary">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-primary">
-                                  {member.first_name} {member.last_name}
-                                </span>
-                                <Badge variant={member.role === 'owner' ? 'default' : member.role === 'admin' ? 'secondary' : 'outline'}>
-                                  {member.role}
-                                </Badge>
-                              </div>
-                              <div className="text-sm text-secondary">{member.email}</div>
-                              <div className="text-xs text-secondary">
-                                Joined {new Date(member.joined_at).toLocaleDateString()}
-                              </div>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <FolderOpen className="h-5 w-5 text-blue-400" />
+                              <span className="font-medium">Unknown</span>
                             </div>
-                            {isProjectAdmin(selectedProject) && member.role !== 'owner' && (
+                            {isProjectAdmin(project) && (
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => handleRemoveUser(member.user_id)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedFolderForAssignment({ id: -1, name: 'Unknown', project_id: project.id } as Folder)
+                                  setShowFolderAssignment(true)
+                                }}
                               >
-                                <UserMinus className="h-4 w-4" />
+                                <UserPlus className="h-3 w-3" />
                               </Button>
                             )}
                           </div>
+                          <div className="text-sm text-muted-foreground">
+                            Images without folder assignment
+                          </div>
+                        </div>
+
+                        {/* Assigned to Me Folder */}
+                        <div 
+                          className="card hover:bg-accent cursor-pointer"
+                          onClick={() => setFilterByAssignment(-2)}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <FolderOpen className="h-5 w-5 text-green-400" />
+                              <span className="font-medium">Assigned to Me</span>
+                            </div>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Images assigned to you
+                          </div>
+                        </div>
+
+                        {/* Regular folders */}
+                        {folders.map((folder) => (
+                          <div 
+                            key={folder.id}
+                            className="card hover:bg-accent cursor-pointer"
+                            onClick={() => handleFolderSelect(folder.id)}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <FolderIcon className="h-5 w-5 text-orange-400" />
+                                <span className="font-medium">{folder.name}</span>
+                              </div>
+                              {isProjectAdmin(project) && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedFolderForAssignment(folder)
+                                    setShowFolderAssignment(true)
+                                  }}
+                                >
+                                  <UserPlus className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {folder.image_count || 0} images
+                            </div>
+                          </div>
                         ))}
                       </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </div>
-          ) : (
-            <Card className="bg-secondary">
-              <CardContent className="text-center py-12">
-                <FolderOpen className="h-12 w-12 text-secondary mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-primary mb-2">No Project Selected</h3>
-                <p className="text-secondary">Select a project from the sidebar to view its details and manage its content.</p>
+                    </div>
+                  </div>
+                ) : (
+                  // Show images in selected folder
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFolderSelect(null)}
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Back to Folders
+                        </Button>
+                        <h3 className="text-lg font-semibold">
+                          {selectedFolderId === -1 ? 'Unknown' : folders.find(f => f.id === selectedFolderId)?.name}
+                        </h3>
+                      </div>
+                      
+                      {/* Filters */}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowFilters(!showFilters)}
+                        >
+                          <Filter className="h-4 w-4 mr-2" />
+                          Filters
+                        </Button>
+                        {(filterByFolder !== null || filterByAssignment !== null) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={clearFilters}
+                          >
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {showFilters && (
+                      <div className="mb-4 p-4 border rounded-lg bg-muted">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label>Filter by Assignment</Label>
+                            <Select value={filterByAssignment?.toString() || "all"} onValueChange={(value) => setFilterByAssignment(value === "all" ? null : parseInt(value))}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="All assignments" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All assignments</SelectItem>
+                                <SelectItem value="-1">Unassigned</SelectItem>
+                                <SelectItem value="-2">Assigned to me</SelectItem>
+                                {allUsers.map((user) => (
+                                  <SelectItem key={user.id} value={user.id.toString()}>
+                                    {user.first_name} {user.last_name} ({user.email})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Active filters display */}
+                    {(filterByFolder !== null || filterByAssignment !== null) && (
+                      <div className="mb-4 flex flex-wrap gap-2">
+                        {filterByAssignment !== null && (
+                          <Badge variant="secondary" className="flex items-center gap-1">
+                            Assignment: {filterByAssignment === -1 ? 'Unassigned' : filterByAssignment === -2 ? 'Assigned to me' : allUsers.find(u => u.id === filterByAssignment)?.email}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto p-0 ml-1"
+                              onClick={() => setFilterByAssignment(null)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Images grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {getFilteredImages().map((image) => (
+                        <div key={image.id} className="relative">
+                          <Card 
+                            className="cursor-pointer hover:shadow-md transition-shadow"
+                            onClick={() => handleImageClick(image.id)}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedImagesForExport.includes(image.id)}
+                                    onChange={(e) => {
+                                      e.stopPropagation()
+                                      toggleImageSelection(image.id)
+                                    }}
+                                    className="rounded"
+                                  />
+                                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                                <ImageEditor 
+                                  image={image} 
+                                  onUpdate={handleImageUpdate}
+                                  onDelete={handleImageDelete}
+                                  allUsers={allUsers}
+                                />
+                              </div>
+                              <div className="text-sm font-medium mb-1">{image.filename}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Uploaded by: {image.uploader.first_name} {image.uploader.last_name}
+                              </div>
+                              {image.assigned_user && (
+                                <div className="text-xs text-muted-foreground">
+                                  Assigned to: {image.assigned_user.first_name} {image.assigned_user.last_name}
+                                </div>
+                              )}
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(image.created_at).toLocaleDateString()}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </div>
+                      ))}
+                    </div>
+
+                    {getFilteredImages().length === 0 && (
+                      <div className="text-center py-8">
+                        <ImageIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground">No images found</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
-          )}
-        </div>
+          </TabsContent>
+
+          <TabsContent value="members" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Project Members</CardTitle>
+                  {isProjectAdmin(project) && (
+                    <Button
+                      onClick={() => setShowInviteUser(true)}
+                      size="sm"
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Invite User
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {project.members.map((member) => (
+                    <div key={member.user_id} className="flex justify-between items-center p-3 border rounded-lg">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">
+                            {member.first_name} {member.last_name}
+                          </span>
+                          <Badge variant={member.role === 'owner' ? 'default' : member.role === 'admin' ? 'secondary' : 'outline'}>
+                            {member.role}
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-muted-foreground">{member.email}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Joined {new Date(member.joined_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      {isProjectAdmin(project) && member.role !== 'owner' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveUser(member.user_id)}
+                        >
+                          <UserMinus className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
+
+      {/* Upload Image Dialog */}
+      <Dialog open={showUploadImage} onOpenChange={setShowUploadImage}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload Images</DialogTitle>
+            <DialogDescription>
+              Upload DICOM images to this project.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Button
+                variant={uploadMode === 'single' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setUploadMode('single')}
+              >
+                Single Upload
+              </Button>
+              <Button
+                variant={uploadMode === 'bulk' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setUploadMode('bulk')}
+              >
+                Bulk Upload
+              </Button>
+            </div>
+            
+            {uploadMode === 'single' ? (
+              <div>
+                <Label htmlFor="file">Select DICOM File</Label>
+                <Input
+                  id="file"
+                  type="file"
+                  accept=".dcm,.dicom"
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                />
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="files">Select DICOM Files</Label>
+                <Input
+                  id="files"
+                  type="file"
+                  accept=".dcm,.dicom"
+                  multiple
+                  onChange={(e) => setSelectedFiles(Array.from(e.target.files || []))}
+                />
+                <div className="text-sm text-muted-foreground mt-1">
+                  Selected {selectedFiles.length} files
+                </div>
+              </div>
+            )}
+
+            <div>
+              <Label htmlFor="folder">Folder (Optional)</Label>
+              <Select value={selectedFolderId?.toString() || "none"} onValueChange={(value) => setSelectedFolderId(value === "none" ? null : parseInt(value))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select folder" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No folder</SelectItem>
+                  {folders.map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id.toString()}>
+                      {folder.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="assigned-user">Assign to User (Optional)</Label>
+              <Select value={assignedUserId || "none"} onValueChange={(value) => setAssignedUserId(value === "none" ? "" : value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select user" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Unassigned</SelectItem>
+                  {allUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id.toString()}>
+                      {user.first_name} {user.last_name} ({user.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUploadImage(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUploadImage}
+              disabled={
+                (uploadMode === 'single' && !selectedFile) ||
+                (uploadMode === 'bulk' && selectedFiles.length === 0)
+              }
+            >
+              Upload
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite User Dialog */}
+      <Dialog open={showInviteUser} onOpenChange={setShowInviteUser}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite User to Project</DialogTitle>
+            <DialogDescription>
+              Invite a user to join this project by their email address.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="invite-email">Email Address</Label>
+              <Input
+                id="invite-email"
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="user@example.com"
+              />
+            </div>
+            <div>
+              <Label htmlFor="invite-role">Role</Label>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="member">Member</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowInviteUser(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleInviteUser} disabled={!inviteEmail}>
+              Send Invitation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Folder Manager Dialog */}
+      <Dialog open={showFolderManager} onOpenChange={setShowFolderManager}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Manage Folders</DialogTitle>
+            <DialogDescription>
+              Create, edit, and organize folders for this project.
+            </DialogDescription>
+          </DialogHeader>
+          <FolderManager 
+            projectId={project.id}
+            onFoldersChange={refreshFolders}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Folder Assignment Dialog */}
+      <Dialog open={showFolderAssignment} onOpenChange={setShowFolderAssignment}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Folder to User</DialogTitle>
+            <DialogDescription>
+              Assign all images in this folder to a user.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Folder</Label>
+              <div className="p-3 border rounded-lg bg-muted">
+                {selectedFolderForAssignment?.name}
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="folder-assignment-user">Assign to User</Label>
+              <Select value={folderAssignmentUserId} onValueChange={setFolderAssignmentUserId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select user" />
+                </SelectTrigger>
+                <SelectContent>
+                  {allUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id.toString()}>
+                      {user.first_name} {user.last_name} ({user.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFolderAssignment(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAssignFolder} disabled={!folderAssignmentUserId}>
+              Assign
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Export Dialog */}
+      <Dialog open={showBulkExport} onOpenChange={setShowBulkExport}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export Annotations</DialogTitle>
+            <DialogDescription>
+              Export annotations for {selectedImagesForExport.length} selected images.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This will create a ZIP file containing all annotations for the selected images.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkExport(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleBulkExport} disabled={exporting}>
+              {exporting ? 'Exporting...' : 'Export'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 
