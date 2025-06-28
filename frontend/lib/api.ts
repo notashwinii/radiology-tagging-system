@@ -74,7 +74,7 @@ export interface Image {
   assigned_user: User | null
 }
 
-interface Folder {
+export interface Folder {
   id: number
   name: string
   description?: string

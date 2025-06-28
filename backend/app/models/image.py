@@ -10,6 +10,7 @@ class Image(CommonModel):
     orthanc_id = Column(String, unique=True, index=True, nullable=False)
     uploader_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    folder_id = Column(Integer, ForeignKey('folders.id'), nullable=True)  # Optional folder assignment
     assigned_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     upload_time = Column(DateTime(timezone=True))
     dicom_metadata = Column(JSON, nullable=True)
@@ -19,5 +20,6 @@ class Image(CommonModel):
     uploader = relationship("User", foreign_keys=[
                             uploader_id], back_populates="uploaded_images")
     project = relationship("Project", back_populates="images")
+    folder = relationship("Folder", back_populates="images")
     assigned_user = relationship("User", foreign_keys=[assigned_user_id])
     annotations = relationship("Annotation", back_populates="image")

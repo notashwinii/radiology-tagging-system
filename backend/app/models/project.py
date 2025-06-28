@@ -26,6 +26,7 @@ class Project(CommonModel):
     owner = relationship("User", foreign_keys=[owner_id], back_populates="owned_projects")
     members = relationship("User", secondary=project_users, back_populates="projects")
     images = relationship("Image", back_populates="project")
+    folders = relationship("Folder", back_populates="project")
     
     def __repr__(self):
         return f"Project(name={self.name}, owner_id={self.owner_id})"

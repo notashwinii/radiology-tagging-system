@@ -69,6 +69,7 @@ def get_orthanc_wado(orthanc_id):
 def upload_image(
     file: UploadFile = File(...),
     project_id: int = Form(...),
+    folder_id: Optional[int] = Form(None),
     assigned_user_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -117,6 +118,15 @@ def upload_image(
         if existing_image:
             raise HTTPException(status_code=409, detail=f"Image already exists in this project (Orthanc ID: {orthanc_id})")
         
+        # Validate folder if specified
+        if folder_id:
+            folder = db.query(Folder).filter(
+                Folder.id == folder_id,
+                Folder.project_id == project_id
+            ).first()
+            if not folder:
+                raise HTTPException(status_code=404, detail="Folder not found or does not belong to this project")
+        
         # Fetch DICOM metadata from Orthanc
         dicom_metadata = None
         try:
@@ -138,6 +148,7 @@ def upload_image(
             orthanc_id=orthanc_id,
             uploader_id=current_user.id,
             project_id=project_id,
+            folder_id=folder_id,
             assigned_user_id=assigned_user_id,
             upload_time=None,
             dicom_metadata=dicom_metadata,
@@ -166,30 +177,32 @@ def upload_image(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.get("/", response_model=List[ImageResponse])
-def list_images(
+def get_images(
     project_id: Optional[int] = None,
+    folder_id: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """List images - optionally filtered by project"""
-    query = db.query(Image).options(
-        joinedload(Image.uploader),
-        joinedload(Image.assigned_user)
+    """Get images for the current user, optionally filtered by project and folder"""
+    
+    query = db.query(Image).join(Project).join(
+        Project.members
+    ).filter(
+        Project.members.any(id=current_user.id)
     )
     
     if project_id:
-        # Check if user has access to the project
-        project = get_project(db, project_id, current_user)
-        if not project:
-            raise HTTPException(status_code=404, detail="Project not found or access denied")
         query = query.filter(Image.project_id == project_id)
-    else:
-        # Only show images from projects where user is a member
-        query = query.join(Project).join(Project.members).filter(
-            Project.members.any(id=current_user.id)
-        )
     
-    images = query.all()
+    if folder_id:
+        query = query.filter(Image.folder_id == folder_id)
+    
+    images = query.options(
+        joinedload(Image.uploader),
+        joinedload(Image.assigned_user),
+        joinedload(Image.folder)
+    ).all()
+    
     return images
 
 @router.get("/{image_id}", response_model=ImageResponse)
@@ -308,6 +321,7 @@ def wado_image(
 def bulk_upload_images(
     files: List[UploadFile] = File(...),
     project_id: int = Form(...),
+    folder_id: Optional[int] = Form(None),
     assigned_user_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -381,6 +395,15 @@ def bulk_upload_images(
                     })
                     continue
                 
+                # Validate folder if specified
+                if folder_id:
+                    folder = db.query(Folder).filter(
+                        Folder.id == folder_id,
+                        Folder.project_id == project_id
+                    ).first()
+                    if not folder:
+                        raise HTTPException(status_code=404, detail="Folder not found or does not belong to this project")
+                
                 # Fetch DICOM metadata from Orthanc
                 dicom_metadata = None
                 try:
@@ -399,6 +422,7 @@ def bulk_upload_images(
                     orthanc_id=orthanc_id,
                     uploader_id=current_user.id,
                     project_id=project_id,
+                    folder_id=folder_id,
                     assigned_user_id=assigned_user_id,
                     upload_time=None,
                     dicom_metadata=dicom_metadata,

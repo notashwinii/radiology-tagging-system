@@ -5,8 +5,11 @@ from .user import UserResponse
 
 class ImageBase(BaseModel):
     orthanc_id: str
-    dicom_metadata: Optional[Any]
-    thumbnail_url: Optional[str]
+    folder_id: Optional[int] = None
+    assigned_user_id: Optional[int] = None
+    upload_time: Optional[datetime] = None
+    dicom_metadata: Optional[dict] = None
+    thumbnail_url: Optional[str] = None
 
 class ImageCreate(ImageBase):
     pass

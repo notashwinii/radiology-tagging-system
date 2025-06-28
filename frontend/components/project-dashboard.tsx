@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/auth-context'
-import { api, Image, ApiError } from '../lib/api'
+import { api, Image, ApiError, Folder } from '../lib/api'
 import { Button } from './ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card'
 import { Input } from './ui/input'
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import DicomImageDetail from "./dicom-image-detail"
+import { FolderManager } from './folder-manager'
 
 interface Project {
   id: number
@@ -80,6 +81,8 @@ export function ProjectDashboard() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [uploadMode, setUploadMode] = useState<'single' | 'bulk'>('single')
   const [assignedUserId, setAssignedUserId] = useState("")
+  const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null)
+  const [folders, setFolders] = useState<Folder[]>([])
 
   useEffect(() => {
     loadDashboard()
@@ -170,7 +173,8 @@ export function ProjectDashboard() {
       try {
         const image = await api.uploadImage(
           selectedFile, 
-          selectedProject.id, 
+          selectedProject.id,
+          selectedFolderId || undefined,
           assignedUserId ? parseInt(assignedUserId) : undefined
         )
         setImages([...images, image])
@@ -192,6 +196,7 @@ export function ProjectDashboard() {
         const uploadedImages = await api.bulkUploadImages(
           selectedFiles,
           selectedProject.id,
+          selectedFolderId || undefined,
           assignedUserId ? parseInt(assignedUserId) : undefined
         )
         setImages([...images, ...uploadedImages])
@@ -210,14 +215,35 @@ export function ProjectDashboard() {
 
   const handleProjectSelect = async (project: Project) => {
     setSelectedProject(project)
+    setSelectedFolderId(null) // Reset folder selection when project changes
     try {
       const projectImages = await api.getImages(project.id)
       setImages(projectImages)
+      
+      // Load folders for the project
+      const projectFolders = await api.getProjectFolders(project.id)
+      setFolders(projectFolders)
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message)
       } else {
         setError("Failed to load project images")
+      }
+    }
+  }
+
+  const handleFolderSelect = async (folderId: number | null) => {
+    setSelectedFolderId(folderId)
+    if (!selectedProject) return
+    
+    try {
+      const folderImages = await api.getImages(selectedProject.id, folderId || undefined)
+      setImages(folderImages)
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message)
+      } else {
+        setError("Failed to load folder images")
       }
     }
   }
@@ -391,10 +417,10 @@ export function ProjectDashboard() {
           <div className="lg:col-span-2">
             {selectedProject ? (
               <Tabs defaultValue="overview" className="space-y-4">
-                <TabsList>
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="images">Images</TabsTrigger>
-                  <TabsTrigger value="members">Members</TabsTrigger>
+                  <TabsTrigger value="folders">Folders</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="space-y-4">
@@ -422,7 +448,14 @@ export function ProjectDashboard() {
                   <Card>
                     <CardHeader>
                       <div className="flex justify-between items-center">
-                        <CardTitle>Project Images</CardTitle>
+                        <div>
+                          <CardTitle>Project Images</CardTitle>
+                          {selectedFolderId && (
+                            <div className="text-sm text-gray-600 mt-1">
+                              Current folder: {folders.find(f => f.id === selectedFolderId)?.name || 'Unknown'}
+                            </div>
+                          )}
+                        </div>
                         <Dialog open={showUploadImage} onOpenChange={setShowUploadImage}>
                           <DialogTrigger asChild>
                             <Button>
@@ -516,6 +549,26 @@ export function ProjectDashboard() {
                                   </SelectContent>
                                 </Select>
                               </div>
+
+                              <div>
+                                <Label htmlFor="folder-select">Folder (Optional)</Label>
+                                <Select 
+                                  value={selectedFolderId?.toString() || "root"} 
+                                  onValueChange={(value) => setSelectedFolderId(value === "root" ? null : parseInt(value))}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select a folder" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="root">Root Level</SelectItem>
+                                    {folders.map((folder) => (
+                                      <SelectItem key={folder.id} value={folder.id.toString()}>
+                                        {folder.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             </div>
                             <DialogFooter>
                               <Button variant="outline" onClick={() => setShowUploadImage(false)}>
@@ -562,6 +615,21 @@ export function ProjectDashboard() {
                           ))}
                         </div>
                       )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="folders" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Project Folders</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <FolderManager
+                        projectId={selectedProject.id}
+                        onFolderSelect={handleFolderSelect}
+                        selectedFolderId={selectedFolderId}
+                      />
                     </CardContent>
                   </Card>
                 </TabsContent>
