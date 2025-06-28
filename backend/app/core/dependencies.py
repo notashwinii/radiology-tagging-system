@@ -1,4 +1,5 @@
 from fastapi.security import OAuth2PasswordBearer
+from typing import Annotated
 
 from app.core.database import SessionLocal
 
@@ -11,5 +12,5 @@ def get_db():
 		db.close()
 
 # authorization 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
