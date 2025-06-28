@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: radiology_db
+      POSTGRES_USER: radiology_user
+      POSTGRES_PASSWORD: radiology_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # Orthanc DICOM Server
+  orthanc:
+    image: jodogne/orthanc-plugins:1.12.1
+    ports:
+      - "8042:8042"  # HTTP API
+      - "4242:4242"  # DICOM port
+    volumes:
+      - orthanc_data:/var/lib/orthanc/db
+      - ./orthanc-config.json:/etc/orthanc/orthanc.json:ro
+    environment:
+      - ORTHANC_NAME=radiology-orthanc
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  orthanc_data: 

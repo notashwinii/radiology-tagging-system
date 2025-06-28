@@ -1,0 +1,22 @@
+{
+  "Name": "Orthanc",
+  "StorageDirectory": "/var/lib/orthanc/db",
+  "DefaultEncoding": "Utf8",
+  "AuthenticationEnabled": true,
+  "DicomAet": "ORTHANC",
+  "DicomPort": 4242,
+  "HttpPort": 8042,
+  "RemoteAccessAllowed": true,
+  "RegisteredUsers": {
+    "orthancadmin": "change_this_password"
+  },
+  "DicomWeb": {
+    "Enable": true,
+    "Root": "/dicom-web/"
+  },
+  "SslEnabled": false,
+  "MaximumPatientCount": 0,
+  "MaximumStorageSize": 0,
+  "MaximumStudyCount": 0,
+  "MaximumStudySize": 0
+} 

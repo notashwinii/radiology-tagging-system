@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from app.core.database import Base
 from .common import CommonModel
 
+
 class Image(CommonModel):
     __tablename__ = "images"
 
@@ -15,7 +16,8 @@ class Image(CommonModel):
     thumbnail_url = Column(String, nullable=True)
 
     # Relationships
-    uploader = relationship("User", foreign_keys=[uploader_id], back_populates="uploaded_images")
+    uploader = relationship("User", foreign_keys=[
+                            uploader_id], back_populates="uploaded_images")
     project = relationship("Project", back_populates="images")
     assigned_user = relationship("User", foreign_keys=[assigned_user_id])
-    annotations = relationship("Annotation", back_populates="image") 
+    annotations = relationship("Annotation", back_populates="image")

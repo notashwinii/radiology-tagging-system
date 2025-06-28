@@ -25,6 +25,15 @@ class User(UserBase):
 	class Config:
 		from_attributes = True
 
+class UserResponse(BaseModel):
+	id: int
+	first_name: Optional[str]
+	last_name: Optional[str]
+	email: str
+	
+	class Config:
+		from_attributes = True
+
 class UserUpdate(BaseModel):
 	first_name: str | None = None
 	last_name: str | None = None
