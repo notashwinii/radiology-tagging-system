@@ -227,14 +227,14 @@ def download_image(
         "Content-Disposition": f"attachment; filename=image_{image_id}.dcm"
     })
 
-@router.get("/wado/{image_id}")
+@router.get("/wado/{orthanc_id}")
 def wado_image(
-    image_id: int,
+    orthanc_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Serve DICOM file for Cornerstone.js via backend (WADO-URI)"""
-    image = db.query(Image).filter(Image.id == image_id).first()
+    image = db.query(Image).filter(Image.orthanc_id == orthanc_id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     project = get_project(db, image.project_id, current_user)
