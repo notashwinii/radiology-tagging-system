@@ -2,9 +2,28 @@
 import dynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { api, Image } from '../../../lib/api';
+import { api, Image, ApiError } from '../../../lib/api';
 import { Button } from '../../../components/ui/button';
-import { ArrowLeft, Download, FileText } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  Download, 
+  FileText, 
+  Database, 
+  Archive,
+  ChevronDown,
+  CheckCircle,
+  AlertCircle
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '../../../components/ui/dropdown-menu';
+import { Alert, AlertDescription } from '../../../components/ui/alert';
+import { Badge } from '../../../components/ui/badge';
 
 const DicomViewer = dynamic(() => import('../../../components/dicom-viewer'), { ssr: false });
 
@@ -16,6 +35,8 @@ export default function DicomViewerPage() {
   const [image, setImage] = useState<Image | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (!imageId || isNaN(imageId)) {
@@ -47,13 +68,87 @@ export default function DicomViewerPage() {
     router.back();
   };
 
-  const handleDownload = () => {
+  const downloadFile = async (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = `${process.env.NEXT_PUBLIC_API_URL}/images/download/${imageId}`;
-    link.download = `dicom_${imageId}.dcm`;
+    link.href = url;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadDicom = async () => {
+    try {
+      setDownloading('dicom');
+      const blob = await api.downloadDicomFile(imageId);
+      const filename = `dicom_${image?.orthanc_id}.dcm`;
+      await downloadFile(blob, filename);
+      setSuccess('DICOM file downloaded successfully');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('Failed to download DICOM');
+      }
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const handleDownloadAnnotations = async (format: 'json' | 'csv') => {
+    try {
+      setDownloading(`annotations-${format}`);
+      const blob = await api.downloadImageAnnotations(imageId, format);
+      const filename = `annotations_image_${imageId}.${format}`;
+      await downloadFile(blob, filename);
+      setSuccess(`Annotations downloaded as ${format.toUpperCase()}`);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('Failed to download annotations');
+      }
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const handleExportDicomSeg = async () => {
+    try {
+      setDownloading('dicom-seg');
+      const blob = await api.exportDicomSeg(imageId);
+      const filename = `segmentation_${image?.orthanc_id}.dcm`;
+      await downloadFile(blob, filename);
+      setSuccess('DICOM-SEG file exported successfully');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('Failed to export DICOM-SEG');
+      }
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const handleDownloadWithAnnotations = async () => {
+    try {
+      setDownloading('image-with-annotations');
+      const blob = await api.downloadImageWithAnnotations(imageId);
+      const filename = `image_${imageId}_with_annotations.zip`;
+      await downloadFile(blob, filename);
+      setSuccess('Image with annotations downloaded successfully');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('Failed to download image with annotations');
+      }
+    } finally {
+      setDownloading(null);
+    }
   };
 
   if (loading) {
@@ -98,16 +193,77 @@ export default function DicomViewerPage() {
         </div>
         
         <div className="flex gap-2">
-          <Button onClick={handleDownload} variant="outline" size="sm">
+          {/* Download DICOM Button */}
+          <Button 
+            onClick={handleDownloadDicom} 
+            variant="outline" 
+            size="sm"
+            disabled={downloading === 'dicom'}
+          >
             <Download className="h-4 w-4 mr-2" />
-            Download DICOM
+            {downloading === 'dicom' ? 'Downloading...' : 'Download DICOM'}
           </Button>
-          <Button variant="outline" size="sm">
-            <FileText className="h-4 w-4 mr-2" />
-            Export Annotations
-          </Button>
+
+          {/* Export Annotations Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <FileText className="h-4 w-4 mr-2" />
+                Export Annotations
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Annotation Formats</DropdownMenuLabel>
+              <DropdownMenuItem 
+                onClick={() => handleDownloadAnnotations('json')}
+                disabled={downloading === 'annotations-json'}
+              >
+                <Database className="h-4 w-4 mr-2" />
+                {downloading === 'annotations-json' ? 'Downloading...' : 'JSON Format'}
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => handleDownloadAnnotations('csv')}
+                disabled={downloading === 'annotations-csv'}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                {downloading === 'annotations-csv' ? 'Downloading...' : 'CSV Format'}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Advanced Export</DropdownMenuLabel>
+              <DropdownMenuItem 
+                onClick={handleExportDicomSeg}
+                disabled={downloading === 'dicom-seg'}
+              >
+                <Archive className="h-4 w-4 mr-2" />
+                {downloading === 'dicom-seg' ? 'Exporting...' : 'DICOM-SEG File'}
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleDownloadWithAnnotations}
+                disabled={downloading === 'image-with-annotations'}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {downloading === 'image-with-annotations' ? 'Downloading...' : 'Image + Annotations'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
+
+      {/* Success/Error Messages */}
+      {success && (
+        <Alert className="mx-6 mt-4 border-green-200 bg-green-50">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">{success}</AlertDescription>
+        </Alert>
+      )}
+
+      {error && (
+        <Alert className="mx-6 mt-4 border-red-200 bg-red-50">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">{error}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 flex">
@@ -166,6 +322,35 @@ export default function DicomViewerPage() {
                   </div>
                 </div>
               )}
+
+              {/* Export Information */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Export Options
+                </label>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>DICOM File</span>
+                    <Badge variant="outline">Available</Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Annotations (JSON)</span>
+                    <Badge variant="outline">Available</Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Annotations (CSV)</span>
+                    <Badge variant="outline">Available</Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>DICOM-SEG</span>
+                    <Badge variant="secondary">Coming Soon</Badge>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Image + Annotations</span>
+                    <Badge variant="outline">Available</Badge>
+                  </div>
+                </div>
+              </div>
 
               {image.dicom_metadata && (
                 <div>

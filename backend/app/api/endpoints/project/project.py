@@ -88,4 +88,17 @@ async def remove_user_from_project(
     success = project_functions.remove_user_from_project(db, project_id, user_id, current_user)
     if not success:
         raise HTTPException(status_code=404, detail="Project not found or access denied")
-    return {"message": "User removed from project successfully"} 
+    return {"message": "User removed from project successfully"}
+
+@project_module.patch('/{project_id}/assign-root-images')
+async def assign_unknown_images(
+    project_id: int,
+    assigned_user_id: int,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Session = Depends(get_db)
+):
+    """Assign all unknown images (images not in any folder) to a specific user"""
+    result = project_functions.assign_unknown_images(db, project_id, assigned_user_id, current_user)
+    if not result:
+        raise HTTPException(status_code=404, detail="Project not found or access denied")
+    return result 

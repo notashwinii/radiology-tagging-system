@@ -213,4 +213,44 @@ def remove_user_from_project(db: Session, project_id: int, user_id: int, current
         )
     )
     db.commit()
-    return True 
+    return True
+
+def assign_unknown_images(db: Session, project_id: int, assigned_user_id: int, current_user: User):
+    """Assign all unknown images (images not in any folder) to a specific user"""
+    # Check if current user has permission (owner or admin)
+    member_role = db.execute(
+        ProjectModel.project_users.select().where(
+            ProjectModel.project_users.c.project_id == project_id,
+            ProjectModel.project_users.c.user_id == current_user.id
+        )
+    ).first()
+    
+    if not member_role or member_role.role not in ['owner', 'admin']:
+        return None
+    
+    # Check if assigned user is a project member
+    assigned_member = db.execute(
+        ProjectModel.project_users.select().where(
+            ProjectModel.project_users.c.project_id == project_id,
+            ProjectModel.project_users.c.user_id == assigned_user_id
+        )
+    ).first()
+    
+    if not assigned_member:
+        raise HTTPException(status_code=400, detail="Assigned user is not a project member")
+    
+    # Update all unknown images (images with no folder_id)
+    unknown_images = db.query(ImageModel.Image).filter(
+        ImageModel.Image.project_id == project_id,
+        ImageModel.Image.folder_id.is_(None)
+    ).all()
+    
+    for image in unknown_images:
+        image.assigned_user_id = assigned_user_id
+    
+    db.commit()
+    
+    return {
+        "message": f"Successfully assigned {len(unknown_images)} unknown images to user",
+        "updated_count": len(unknown_images)
+    } 

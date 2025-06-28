@@ -162,24 +162,65 @@ def delete_folder(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a folder and move its contents to parent folder"""
+    """Delete a folder and move all images to parent folder"""
     
-    folder = get_folder(db, folder_id, current_user)
+    folder = db.query(Folder).filter(Folder.id == folder_id).first()
     if not folder:
-        raise HTTPException(status_code=404, detail="Folder not found or access denied")
+        raise HTTPException(status_code=404, detail="Folder not found")
     
-    # Move all images in this folder to the parent folder (or root if no parent)
-    db.query(Image).filter(Image.folder_id == folder_id).update({
-        "folder_id": folder.parent_folder_id
-    })
+    # Check project access
+    project = get_project(db, folder.project_id, current_user)
+    if not project:
+        raise HTTPException(status_code=404, detail="Access denied")
     
-    # Move all subfolders to the parent folder
-    db.query(Folder).filter(Folder.parent_folder_id == folder_id).update({
-        "parent_folder_id": folder.parent_folder_id
-    })
+    # Move all images to parent folder (or root if no parent)
+    images_in_folder = db.query(Image).filter(Image.folder_id == folder_id).all()
+    for image in images_in_folder:
+        image.folder_id = folder.parent_folder_id
     
     # Delete the folder
     db.delete(folder)
     db.commit()
     
-    return {"message": "Folder deleted successfully"} 
+    return {"message": f"Folder deleted. {len(images_in_folder)} images moved to parent folder."}
+
+@router.patch("/{folder_id}/assign-images")
+def assign_folder_images(
+    folder_id: int,
+    assigned_user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Assign all images in a folder to a specific user"""
+    
+    folder = db.query(Folder).filter(Folder.id == folder_id).first()
+    if not folder:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    
+    # Check project access
+    project = get_project(db, folder.project_id, current_user)
+    if not project:
+        raise HTTPException(status_code=404, detail="Access denied")
+    
+    # Check if assigned user is a project member
+    assigned_member = db.execute(
+        Project.project_users.select().where(
+            Project.project_users.c.project_id == folder.project_id,
+            Project.project_users.c.user_id == assigned_user_id
+        )
+    ).first()
+    
+    if not assigned_member:
+        raise HTTPException(status_code=400, detail="Assigned user is not a project member")
+    
+    # Update all images in the folder
+    images_in_folder = db.query(Image).filter(Image.folder_id == folder_id).all()
+    for image in images_in_folder:
+        image.assigned_user_id = assigned_user_id
+    
+    db.commit()
+    
+    return {
+        "message": f"Successfully assigned {len(images_in_folder)} images to user",
+        "updated_count": len(images_in_folder)
+    } 

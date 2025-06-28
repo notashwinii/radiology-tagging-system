@@ -391,4 +391,110 @@ export const api = {
     })
   },
 
+  async assignFolderImages(folderId: number, assignedUserId: number): Promise<{ message: string; updated_count: number }> {
+    return apiRequest<{ message: string; updated_count: number }>(`/folders/${folderId}/assign-images`, {
+      method: 'PATCH',
+      body: JSON.stringify({ assigned_user_id: assignedUserId }),
+    })
+  },
+
+  async assignUnknownImages(projectId: number, assignedUserId: number): Promise<{ message: string; updated_count: number }> {
+    return apiRequest<{ message: string; updated_count: number }>(`/projects/${projectId}/assign-root-images`, {
+      method: 'PATCH',
+      body: JSON.stringify({ assigned_user_id: assignedUserId }),
+    })
+  },
+
+  // Annotation download and export functions
+  async downloadImageAnnotations(imageId: number, format: 'json' | 'csv' = 'json'): Promise<Blob> {
+    const token = localStorage.getItem('access-token')
+    
+    const response = await fetch(`${API_BASE_URL}/annotations/image/${imageId}/download?format=${format}`, {
+      method: 'GET',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
+      throw new ApiError(response.status, errorData.detail || 'An error occurred')
+    }
+
+    return response.blob()
+  },
+
+  async exportDicomSeg(imageId: number): Promise<Blob> {
+    const token = localStorage.getItem('access-token')
+    
+    const response = await fetch(`${API_BASE_URL}/annotations/image/${imageId}/export-dicom-seg`, {
+      method: 'GET',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
+      throw new ApiError(response.status, errorData.detail || 'An error occurred')
+    }
+
+    return response.blob()
+  },
+
+  async downloadImageWithAnnotations(imageId: number): Promise<Blob> {
+    const token = localStorage.getItem('access-token')
+    
+    const response = await fetch(`${API_BASE_URL}/annotations/image/${imageId}/download-with-dicom`, {
+      method: 'GET',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
+      throw new ApiError(response.status, errorData.detail || 'An error occurred')
+    }
+
+    return response.blob()
+  },
+
+  async bulkExportAnnotations(imageIds: number[]): Promise<Blob> {
+    const token = localStorage.getItem('access-token')
+    
+    const response = await fetch(`${API_BASE_URL}/annotations/bulk-export`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: JSON.stringify({ image_ids: imageIds }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
+      throw new ApiError(response.status, errorData.detail || 'An error occurred')
+    }
+
+    return response.blob()
+  },
+
+  async downloadDicomFile(imageId: number): Promise<Blob> {
+    const token = localStorage.getItem('access-token')
+    
+    const response = await fetch(`${API_BASE_URL}/images/download/${imageId}`, {
+      method: 'GET',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
+      throw new ApiError(response.status, errorData.detail || 'An error occurred')
+    }
+
+    return response.blob()
+  },
 } 
