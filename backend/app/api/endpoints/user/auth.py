@@ -1,5 +1,5 @@
 # fastapi 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 from typing import Annotated
 from datetime import timedelta
 
@@ -42,7 +42,10 @@ async def login_for_access_token(
     return Token(access_token=access_token, refresh_token=refresh_token, token_type="bearer")
 
 @auth_module.post("/refresh", response_model=Token)
-async def refresh_access_token(refresh_token: str, db: Session = Depends(get_db)):
+async def refresh_access_token(
+    refresh_token: str = Form(...),
+    db: Session = Depends(get_db)
+):
     token = await user_functions.refresh_access_token(db, refresh_token)
     return token
 

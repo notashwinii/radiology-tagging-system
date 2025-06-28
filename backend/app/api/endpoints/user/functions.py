@@ -10,7 +10,7 @@ from jose import JWTError, jwt
 
 # import 
 from app.models import user as UserModel
-from app.schemas.user import UserCreate, UserUpdate, Token
+from app.schemas.user import UserCreate, UserUpdate, Token, UserLogin
 from app.core.settings import SECRET_KEY, REFRESH_SECRET_KEY, ALGORITHM
 from app.core.settings import ACCESS_TOKEN_EXPIRE_MINUTES
 from app.core.dependencies import get_db, oauth2_scheme
@@ -65,7 +65,7 @@ def delete_user(db: Session, user_id: int):
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
-def authenticate_user(db: Session, user: UserCreate):
+def authenticate_user(db: Session, user: UserLogin):
     member = get_user_by_email(db, user.email)
     if not member:
         return False
@@ -105,7 +105,7 @@ async def refresh_access_token(db: Session, refresh_token: str):
             raise HTTPException(status_code=401, detail="Invalid refresh token")
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token =  create_access_token(
-            data={"id": member.id, "email": member.email, "role": member.role},
+            data={"id": member.id, "email": member.email, "role": member.role.value},
             expires_delta=access_token_expires
         )
         return Token(access_token=access_token, refresh_token=refresh_token, token_type="bearer")
