@@ -108,6 +108,15 @@ def upload_image(
             print(f"Orthanc upload failed: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to upload to DICOM server: {str(e)}")
         
+        # Check if image already exists in this project
+        existing_image = db.query(Image).filter(
+            Image.orthanc_id == orthanc_id,
+            Image.project_id == project_id
+        ).first()
+        
+        if existing_image:
+            raise HTTPException(status_code=409, detail=f"Image already exists in this project (Orthanc ID: {orthanc_id})")
+        
         # Fetch DICOM metadata from Orthanc
         dicom_metadata = None
         try:
@@ -293,4 +302,152 @@ def wado_image(
     if not project:
         raise HTTPException(status_code=404, detail="Access denied")
     response = get_orthanc_wado(image.orthanc_id)
-    return StreamingResponse(response.raw, media_type="application/dicom") 
+    return StreamingResponse(response.raw, media_type="application/dicom")
+
+@router.post("/bulk-upload", response_model=List[ImageResponse])
+def bulk_upload_images(
+    files: List[UploadFile] = File(...),
+    project_id: int = Form(...),
+    assigned_user_id: Optional[int] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload multiple images to a specific project (DICOM only)"""
+    
+    try:
+        print(f"Starting bulk upload for {len(files)} files")
+        print(f"Project ID: {project_id}, Assigned User ID: {assigned_user_id}")
+        print(f"Current user: {current_user.email}")
+        
+        # Validate project access
+        project = get_project(db, project_id, current_user)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found or access denied")
+        
+        print(f"Project found: {project['name']}")
+        
+        uploaded_images = []
+        skipped_images = []
+        failed_images = []
+        
+        for i, file in enumerate(files):
+            try:
+                print(f"Processing file {i+1}/{len(files)}: {file.filename}")
+                
+                # Validate file type
+                if not file.filename.lower().endswith(('.dcm', '.dicom')):
+                    failed_images.append({
+                        'filename': file.filename,
+                        'error': 'Only DICOM files (.dcm, .dicom) are allowed'
+                    })
+                    continue
+                
+                # Validate file size (max 100MB)
+                file.file.seek(0, 2)  # Seek to end
+                file_size = file.file.tell()
+                file.file.seek(0)  # Reset to beginning
+                
+                if file_size > 100 * 1024 * 1024:  # 100MB
+                    failed_images.append({
+                        'filename': file.filename,
+                        'error': 'File size too large. Maximum size is 100MB'
+                    })
+                    continue
+                
+                # Upload to Orthanc
+                orthanc_id = None
+                try:
+                    orthanc_id = upload_to_orthanc(file.file)
+                except Exception as e:
+                    print(f"Orthanc upload failed for {file.filename}: {e}")
+                    failed_images.append({
+                        'filename': file.filename,
+                        'error': f'Failed to upload to DICOM server: {str(e)}'
+                    })
+                    continue
+                
+                # Check if image already exists in this project
+                existing_image = db.query(Image).filter(
+                    Image.orthanc_id == orthanc_id,
+                    Image.project_id == project_id
+                ).first()
+                
+                if existing_image:
+                    print(f"Image already exists in project: {file.filename}")
+                    skipped_images.append({
+                        'filename': file.filename,
+                        'orthanc_id': orthanc_id,
+                        'reason': 'Image already exists in this project'
+                    })
+                    continue
+                
+                # Fetch DICOM metadata from Orthanc
+                dicom_metadata = None
+                try:
+                    meta_url = f"{ORTHANC_URL}/instances/{orthanc_id}/tags?simplify"
+                    auth = (ORTHANC_USERNAME, ORTHANC_PASSWORD)
+                    meta_resp = requests.get(meta_url, auth=auth, timeout=10)
+                    if meta_resp.ok:
+                        dicom_metadata = meta_resp.json()
+                    else:
+                        print(f"Failed to fetch metadata for {file.filename}: {meta_resp.status_code}")
+                except Exception as e:
+                    print(f"Warning: Could not fetch DICOM metadata for {file.filename}: {e}")
+                
+                # Create image record
+                image = Image(
+                    orthanc_id=orthanc_id,
+                    uploader_id=current_user.id,
+                    project_id=project_id,
+                    assigned_user_id=assigned_user_id,
+                    upload_time=None,
+                    dicom_metadata=dicom_metadata,
+                    thumbnail_url=None,
+                )
+                db.add(image)
+                db.commit()
+                db.refresh(image)
+                
+                # Load relationships for response
+                image = db.query(Image).options(
+                    joinedload(Image.uploader),
+                    joinedload(Image.assigned_user)
+                ).filter(Image.id == image.id).first()
+                
+                uploaded_images.append(image)
+                print(f"Successfully uploaded: {file.filename} (ID: {image.id})")
+                
+            except Exception as e:
+                print(f"Error processing {file.filename}: {e}")
+                failed_images.append({
+                    'filename': file.filename,
+                    'error': str(e)
+                })
+                continue
+        
+        # Return summary
+        result = {
+            'uploaded_images': uploaded_images,
+            'skipped_images': skipped_images,
+            'failed_images': failed_images,
+            'summary': {
+                'total_files': len(files),
+                'uploaded': len(uploaded_images),
+                'skipped': len(skipped_images),
+                'failed': len(failed_images)
+            }
+        }
+        
+        print(f"Bulk upload completed. Uploaded: {len(uploaded_images)}, Skipped: {len(skipped_images)}, Failed: {len(failed_images)}")
+        
+        # For now, return just the uploaded images to maintain compatibility
+        # In the future, we could create a proper response model for bulk upload results
+        return uploaded_images
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Unexpected error in bulk_upload_images: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}") 
