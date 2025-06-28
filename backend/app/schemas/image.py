@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from typing import Optional, Any
 from datetime import datetime
 from .user import UserResponse
+from .folder import FolderResponse
 
 class ImageBase(BaseModel):
     orthanc_id: str
@@ -14,6 +15,10 @@ class ImageBase(BaseModel):
 class ImageCreate(ImageBase):
     pass
 
+class ImageUpdate(BaseModel):
+    assigned_user_id: Optional[int] = None
+    folder_id: Optional[int] = None
+
 class ImageResponse(ImageBase):
     id: int
     uploader_id: int
@@ -24,6 +29,7 @@ class ImageResponse(ImageBase):
     updated_at: datetime
     uploader: UserResponse
     assigned_user: Optional[UserResponse]
+    folder: Optional[FolderResponse]
     
     class Config:
         from_attributes = True 

@@ -18,7 +18,7 @@ interface LoginResponse {
   token_type: string
 }
 
-interface User {
+export interface User {
   id: number
   email: string
   first_name?: string
@@ -64,6 +64,7 @@ export interface Image {
   orthanc_id: string
   uploader_id: number
   project_id: number
+  folder_id?: number
   assigned_user_id: number | null
   upload_time: string | null
   dicom_metadata: any | null
@@ -72,6 +73,7 @@ export interface Image {
   updated_at: string
   uploader: User
   assigned_user: User | null
+  folder?: Folder
 }
 
 export interface Folder {
@@ -316,6 +318,26 @@ export const api = {
     }
 
     return response.json()
+  },
+
+  async updateImage(imageId: number, imageData: { assigned_user_id?: number; folder_id?: number }): Promise<Image> {
+    return apiRequest<Image>(`/images/${imageId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(imageData),
+    })
+  },
+
+  async moveImage(imageId: number, folderId?: number): Promise<Image> {
+    return apiRequest<Image>(`/images/${imageId}/move`, {
+      method: 'PATCH',
+      body: JSON.stringify({ folder_id: folderId }),
+    })
+  },
+
+  async deleteImage(imageId: number): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>(`/images/${imageId}`, {
+      method: 'DELETE',
+    })
   },
 
   // User management

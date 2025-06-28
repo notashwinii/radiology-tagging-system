@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Form
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
-from app.schemas.image import ImageCreate, ImageResponse
+from app.schemas.image import ImageCreate, ImageResponse, ImageUpdate
 from app.core.dependencies import get_db, oauth2_scheme
 from app.models.image import Image
 from app.models.user import User
 from app.models.project import Project
+from app.models.folder import Folder
 from app.api.endpoints.user.functions import get_current_user
 from app.api.endpoints.project.functions import get_project
 import requests
@@ -161,7 +162,8 @@ def upload_image(
         # Load relationships for response
         image = db.query(Image).options(
             joinedload(Image.uploader),
-            joinedload(Image.assigned_user)
+            joinedload(Image.assigned_user),
+            joinedload(Image.folder)
         ).filter(Image.id == image.id).first()
         
         print(f"Successfully created image record with ID: {image.id} and Orthanc ID: {orthanc_id}")
@@ -278,7 +280,8 @@ def assign_image(
     # Reload the image with relationships
     image = db.query(Image).options(
         joinedload(Image.uploader),
-        joinedload(Image.assigned_user)
+        joinedload(Image.assigned_user),
+        joinedload(Image.folder)
     ).filter(Image.id == image_id).first()
     
     return image
@@ -435,7 +438,8 @@ def bulk_upload_images(
                 # Load relationships for response
                 image = db.query(Image).options(
                     joinedload(Image.uploader),
-                    joinedload(Image.assigned_user)
+                    joinedload(Image.assigned_user),
+                    joinedload(Image.folder)
                 ).filter(Image.id == image.id).first()
                 
                 uploaded_images.append(image)
@@ -474,4 +478,100 @@ def bulk_upload_images(
         print(f"Unexpected error in bulk_upload_images: {e}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.patch("/{image_id}", response_model=ImageResponse)
+def update_image(
+    image_id: int,
+    image_data: ImageUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update image details (assignment, folder)"""
+    
+    # Get the image
+    image = db.query(Image).filter(Image.id == image_id).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    # Check project access
+    project = get_project(db, image.project_id, current_user)
+    if not project:
+        raise HTTPException(status_code=404, detail="Access denied")
+    
+    # Update fields if provided
+    if image_data.assigned_user_id is not None:
+        # Validate assigned user is a project member
+        assigned_user = db.query(User).filter(User.id == image_data.assigned_user_id).first()
+        if not assigned_user:
+            raise HTTPException(status_code=404, detail="Assigned user not found")
+        
+        # Check if user is a project member
+        project_member = db.query(Project).join(Project.members).filter(
+            Project.id == image.project_id,
+            Project.members.any(id=assigned_user.id)
+        ).first()
+        
+        if not project_member:
+            raise HTTPException(status_code=400, detail="Assigned user is not a project member")
+        
+        image.assigned_user_id = image_data.assigned_user_id
+    
+    if image_data.folder_id is not None:
+        # Validate folder belongs to the project
+        if image_data.folder_id:
+            folder = db.query(Folder).filter(
+                Folder.id == image_data.folder_id,
+                Folder.project_id == image.project_id
+            ).first()
+            if not folder:
+                raise HTTPException(status_code=404, detail="Folder not found or does not belong to this project")
+        image.folder_id = image_data.folder_id
+    
+    db.commit()
+    db.refresh(image)
+    
+    # Load relationships for response
+    image = db.query(Image).options(
+        joinedload(Image.uploader),
+        joinedload(Image.assigned_user),
+        joinedload(Image.folder)
+    ).filter(Image.id == image_id).first()
+    
+    return image
+
+@router.delete("/{image_id}")
+def delete_image(
+    image_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete an image"""
+    
+    # Get the image
+    image = db.query(Image).filter(Image.id == image_id).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    # Check project access
+    project = get_project(db, image.project_id, current_user)
+    if not project:
+        raise HTTPException(status_code=404, detail="Access denied")
+    
+    # Delete from Orthanc (optional - you might want to keep the DICOM file)
+    try:
+        delete_url = f"{ORTHANC_URL}/instances/{image.orthanc_id}"
+        auth = (ORTHANC_USERNAME, ORTHANC_PASSWORD)
+        response = requests.delete(delete_url, auth=auth, timeout=10)
+        if response.ok:
+            print(f"Successfully deleted from Orthanc: {image.orthanc_id}")
+        else:
+            print(f"Warning: Failed to delete from Orthanc: {response.status_code}")
+    except Exception as e:
+        print(f"Warning: Could not delete from Orthanc: {e}")
+    
+    # Delete from database
+    db.delete(image)
+    db.commit()
+    
+    return {"message": "Image deleted successfully"} 

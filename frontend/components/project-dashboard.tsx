@@ -25,6 +25,7 @@ import {
 import { useRouter } from 'next/navigation'
 import DicomImageDetail from "./dicom-image-detail"
 import { FolderManager } from './folder-manager'
+import { ImageEditor } from './image-editor'
 
 interface Project {
   id: number
@@ -180,6 +181,7 @@ export function ProjectDashboard() {
         setImages([...images, image])
         setShowUploadImage(false)
         setSelectedFile(null)
+        setSelectedFolderId(null)
         setAssignedUserId("")
       } catch (err) {
         if (err instanceof ApiError) {
@@ -202,6 +204,7 @@ export function ProjectDashboard() {
         setImages([...images, ...uploadedImages])
         setShowUploadImage(false)
         setSelectedFiles([])
+        setSelectedFolderId(null)
         setAssignedUserId("")
       } catch (err) {
         if (err instanceof ApiError) {
@@ -211,6 +214,14 @@ export function ProjectDashboard() {
         }
       }
     }
+  }
+
+  const handleImageUpdate = (updatedImage: Image) => {
+    setImages(images.map(img => img.id === updatedImage.id ? updatedImage : img))
+  }
+
+  const handleImageDelete = (imageId: number) => {
+    setImages(images.filter(img => img.id !== imageId))
   }
 
   const handleProjectSelect = async (project: Project) => {
@@ -594,13 +605,24 @@ export function ProjectDashboard() {
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {images.map((image) => (
-                            <div key={image.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleImageClick(image.id)}>
+                            <div key={image.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                               <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleImageClick(image.id)}>
                                   <ImageIcon className="h-4 w-4 text-gray-500" />
                                   <span className="text-sm font-medium">Image #{image.id}</span>
                                 </div>
-                                <Eye className="h-4 w-4 text-blue-500" />
+                                <div className="flex items-center gap-2">
+                                  <Eye className="h-4 w-4 text-blue-500 cursor-pointer" onClick={() => handleImageClick(image.id)} />
+                                  {isProjectAdmin(selectedProject) && (
+                                    <ImageEditor
+                                      image={image}
+                                      projectMembers={selectedProject.members}
+                                      folders={folders}
+                                      onImageUpdate={handleImageUpdate}
+                                      onImageDelete={handleImageDelete}
+                                    />
+                                  )}
+                                </div>
                               </div>
                               <div className="text-xs text-gray-500 space-y-1">
                                 <div>Orthanc ID: {image.orthanc_id}</div>
@@ -608,6 +630,11 @@ export function ProjectDashboard() {
                                 {image.assigned_user_id && (
                                   <div className="text-blue-600">
                                     Assigned to: {allUsers.find(u => u.id === image.assigned_user_id)?.email}
+                                  </div>
+                                )}
+                                {image.folder_id && (
+                                  <div className="text-green-600">
+                                    Folder: {folders.find(f => f.id === image.folder_id)?.name || 'Unknown'}
                                   </div>
                                 )}
                               </div>
