@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../contexts/auth-context'
 import { api, Image, ApiError, Folder } from '../lib/api'
 import { Button } from './ui/button'
@@ -109,11 +109,26 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
   // Add state for upload-specific errors
   const [uploadError, setUploadError] = useState('');
 
+  const [showManageProject, setShowManageProject] = useState(false)
+  const [editProjectName, setEditProjectName] = useState('')
+  const [editProjectDescription, setEditProjectDescription] = useState('')
+  const [manageProjectError, setManageProjectError] = useState('')
+  const [manageProjectSaving, setManageProjectSaving] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const deleteConfirmInput = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     if (projectId) {
       loadProject()
     }
   }, [projectId])
+
+  useEffect(() => {
+    if (project) {
+      setEditProjectName(project.name)
+      setEditProjectDescription(project.description || '')
+    }
+  }, [project])
 
   const loadProject = async () => {
     if (!projectId) return
@@ -426,6 +441,34 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
     setAssignedUserId("");
   };
 
+  const handleUpdateProject = async () => {
+    if (!project) return
+    setManageProjectSaving(true)
+    setManageProjectError('')
+    try {
+      const updated = await api.updateProject(project.id, {
+        name: editProjectName,
+        description: editProjectDescription
+      })
+      setProject(updated)
+    } catch (err) {
+      setManageProjectError(err instanceof ApiError ? err.message : 'Failed to update project')
+    } finally {
+      setManageProjectSaving(false)
+    }
+  }
+
+  const handleDeleteProjectConfirmed = async () => {
+    if (!project) return
+    setManageProjectError('')
+    try {
+      await api.deleteProject(project.id)
+      router.push('/home')
+    } catch (err) {
+      setManageProjectError(err instanceof ApiError ? err.message : 'Failed to delete project')
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -472,11 +515,11 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
           <div className="flex gap-2">
             {isProjectOwner(project) && (
               <Button
-                variant="destructive"
+                variant="outline"
                 size="sm"
-                onClick={() => handleDeleteProject(project.id)}
+                onClick={() => setShowManageProject(true)}
               >
-                Delete Project
+                Manage Project
               </Button>
             )}
           </div>
@@ -1034,6 +1077,158 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
               Create Folder
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Project Modal */}
+      <Dialog open={showManageProject} onOpenChange={(open) => {
+        setShowManageProject(open)
+        if (!open) {
+          setEditProjectName(project?.name || '')
+          setEditProjectDescription(project?.description || '')
+          setManageProjectError('')
+          setManageProjectSaving(false)
+          setShowDeleteConfirm(false)
+          if (deleteConfirmInput.current) deleteConfirmInput.current.value = ''
+        }
+      }}>
+        <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Manage Project</DialogTitle>
+            <DialogDescription>
+              Update project details, manage users, or delete this project.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-8 py-2">
+            {/* Project Details */}
+            <section>
+              <h3 className="text-lg font-semibold mb-2">Project Details</h3>
+              <div className="space-y-2">
+                <Label htmlFor="project-name">Project Name</Label>
+                <Input
+                  id="project-name"
+                  value={editProjectName}
+                  onChange={e => setEditProjectName(e.target.value)}
+                  placeholder="Enter project name"
+                />
+                <Label htmlFor="project-description">Description</Label>
+                <Input
+                  id="project-description"
+                  value={editProjectDescription}
+                  onChange={e => setEditProjectDescription(e.target.value)}
+                  placeholder="Enter project description"
+                />
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    onClick={handleUpdateProject}
+                    disabled={manageProjectSaving || !editProjectName.trim()}
+                  >
+                    {manageProjectSaving ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+                {manageProjectError && (
+                  <Alert variant="destructive" className="mt-2">
+                    <AlertDescription>{manageProjectError}</AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </section>
+
+            {/* User Management */}
+            <section>
+              <h3 className="text-lg font-semibold mb-2">User Management</h3>
+              <div className="space-y-2">
+                <div className="flex flex-col gap-2">
+                  {project.members.map((member) => (
+                    <div key={member.user_id} className="flex items-center justify-between border rounded-lg p-2">
+                      <div>
+                        <span className="font-medium">{member.first_name} {member.last_name}</span>
+                        <span className="ml-2 text-xs text-muted-foreground">{member.email}</span>
+                        <Badge variant={member.role === 'owner' ? 'default' : member.role === 'admin' ? 'secondary' : 'outline'} className="ml-2">
+                          {member.role}
+                        </Badge>
+                      </div>
+                      {isProjectAdmin(project) && member.role !== 'owner' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveUser(member.user_id)}
+                        >
+                          <UserMinus className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4">
+                  <Label htmlFor="invite-email">Invite User</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      id="invite-email"
+                      type="email"
+                      value={inviteEmail}
+                      onChange={e => setInviteEmail(e.target.value)}
+                      placeholder="user@example.com"
+                    />
+                    <Select value={inviteRole} onValueChange={setInviteRole}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={handleInviteUser} disabled={!inviteEmail}>
+                      Invite
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Danger Zone */}
+            <section>
+              <h3 className="text-lg font-semibold text-red-600 mb-2">Danger Zone</h3>
+              <div className="border border-red-300 bg-red-50 rounded-lg p-4 flex flex-col gap-2">
+                <div>
+                  <span className="font-bold">Delete this project</span>
+                  <p className="text-sm text-muted-foreground">This action cannot be undone. All images, folders, and data will be permanently deleted.</p>
+                </div>
+                <Button variant="destructive" onClick={() => setShowDeleteConfirm(true)}>
+                  Delete Project
+                </Button>
+              </div>
+            </section>
+          </div>
+          {/* Delete Confirmation Dialog */}
+          <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Project</DialogTitle>
+                <DialogDescription>
+                  <span className="font-bold text-red-600">This action cannot be undone.</span><br/>
+                  Are you sure you want to delete this project?
+                </DialogDescription>
+              </DialogHeader>
+              {manageProjectError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{manageProjectError}</AlertDescription>
+                </Alert>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+                  No
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteProjectConfirmed}
+                >
+                  Yes, Delete Project
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </DialogContent>
       </Dialog>
     </div>

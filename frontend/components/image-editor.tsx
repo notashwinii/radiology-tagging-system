@@ -33,6 +33,7 @@ export function ImageEditor({ image, projectMembers, folders, onImageUpdate, onI
   const [error, setError] = useState<string | null>(null)
   const [assignedUserId, setAssignedUserId] = useState<string>(image.assigned_user_id?.toString() || "unassigned")
   const [selectedFolderId, setSelectedFolderId] = useState<string>(image.folder_id?.toString() || "root")
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const handleUpdateImage = async () => {
     setLoading(true)
@@ -84,6 +85,16 @@ export function ImageEditor({ image, projectMembers, folders, onImageUpdate, onI
     
     return path.join(' / ')
   }
+
+  // Reset delete dialog state on close
+  const handleDeleteDialogChange = (open: boolean) => {
+    setShowDeleteDialog(open);
+    if (!open) {
+      setError(null);
+      setLoading(false);
+      setDeleteConfirmText("");
+    }
+  };
 
   return (
     <>
@@ -191,12 +202,13 @@ export function ImageEditor({ image, projectMembers, folders, onImageUpdate, onI
       </Dialog>
 
       {/* Delete Image Dialog */}
-      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <Dialog open={showDeleteDialog} onOpenChange={handleDeleteDialogChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Image</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this image? This action cannot be undone.
+              <span className="font-bold text-red-600">This action cannot be undone.</span><br/>
+              To confirm deletion, please type <span className="font-mono font-bold">DELETE</span> below and click Delete.
             </DialogDescription>
           </DialogHeader>
           
@@ -216,13 +228,29 @@ export function ImageEditor({ image, projectMembers, folders, onImageUpdate, onI
               <Label>Orthanc ID</Label>
               <Input value={image.orthanc_id} disabled />
             </div>
+
+            <div>
+              <Label htmlFor="delete-confirm">Type DELETE to confirm</Label>
+              <Input
+                id="delete-confirm"
+                value={deleteConfirmText}
+                onChange={e => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                autoComplete="off"
+                className={deleteConfirmText && deleteConfirmText !== "DELETE" ? "ring-2 ring-red-500" : ""}
+              />
+            </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+            <Button variant="outline" onClick={() => handleDeleteDialogChange(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteImage} disabled={loading}>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteImage}
+              disabled={loading || deleteConfirmText !== "DELETE"}
+            >
               {loading ? 'Deleting...' : 'Delete Image'}
             </Button>
           </DialogFooter>
