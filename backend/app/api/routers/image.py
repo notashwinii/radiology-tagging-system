@@ -54,9 +54,31 @@ def get_orthanc_instance(orthanc_id):
     """Download DICOM file from Orthanc server"""
     url = f"{ORTHANC_URL}/instances/{orthanc_id}/file"
     auth = (ORTHANC_USERNAME, ORTHANC_PASSWORD)
-    response = requests.get(url, auth=auth, stream=True)
-    response.raise_for_status()
-    return response
+    
+    try:
+        print(f"Attempting to download DICOM from Orthanc: {url}")
+        response = requests.get(url, auth=auth, stream=True, timeout=30)
+        response.raise_for_status()
+        print(f"Successfully downloaded DICOM from Orthanc")
+        return response
+    except requests.exceptions.ConnectionError as e:
+        print(f"Connection error to Orthanc server: {e}")
+        raise Exception(f"Failed to connect to Orthanc server at {ORTHANC_URL}. Please check if Orthanc is running.")
+    except requests.exceptions.Timeout as e:
+        print(f"Timeout error to Orthanc server: {e}")
+        raise Exception(f"Timeout connecting to Orthanc server. Please check if Orthanc is running.")
+    except requests.exceptions.HTTPError as e:
+        print(f"HTTP error from Orthanc server: {e}")
+        if response.status_code == 404:
+            raise Exception(f"DICOM instance {orthanc_id} not found in Orthanc server.")
+        else:
+            raise Exception(f"Orthanc server returned error {response.status_code}: {response.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"Request error to Orthanc server: {e}")
+        raise Exception(f"Failed to download from Orthanc server: {str(e)}")
+    except Exception as e:
+        print(f"Unexpected error downloading from Orthanc: {e}")
+        raise Exception(f"Unexpected error: {str(e)}")
 
 def get_orthanc_wado(orthanc_id):
     """Get DICOM file from Orthanc for WADO-URI"""
@@ -110,14 +132,18 @@ def upload_image(
             print(f"Orthanc upload failed: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to upload to DICOM server: {str(e)}")
         
-        # Check if image already exists in this project
+        # Check if image already exists in this project and folder
         existing_image = db.query(Image).filter(
             Image.orthanc_id == orthanc_id,
-            Image.project_id == project_id
+            Image.project_id == project_id,
+            Image.folder_id == folder_id
         ).first()
         
         if existing_image:
-            raise HTTPException(status_code=409, detail=f"Image already exists in this project (Orthanc ID: {orthanc_id})")
+            raise HTTPException(
+                status_code=409, 
+                detail=f"Image already exists in this folder within this project (Orthanc ID: {orthanc_id})"
+            )
         
         # Validate folder if specified
         if folder_id:
@@ -293,25 +319,42 @@ def download_image(
     current_user: User = Depends(get_current_user)
 ):
     """Download/export a DICOM file securely via backend"""
-    image = db.query(Image).filter(Image.id == image_id).first()
-    if not image:
-        raise HTTPException(status_code=404, detail="Image not found")
-    project = get_project(db, image.project_id, current_user)
-    if not project:
-        raise HTTPException(status_code=404, detail="Access denied")
-    response = get_orthanc_instance(image.orthanc_id)
-    return StreamingResponse(response.raw, media_type="application/dicom", headers={
-        "Content-Disposition": f"attachment; filename=image_{image_id}.dcm"
-    })
+    try:
+        print(f"Download request for image ID: {image_id} by user: {current_user.email}")
+        
+        image = db.query(Image).filter(Image.id == image_id).first()
+        if not image:
+            print(f"Image not found: {image_id}")
+            raise HTTPException(status_code=404, detail="Image not found")
+        
+        project = get_project(db, image.project_id, current_user)
+        if not project:
+            print(f"Access denied for user {current_user.email} to image {image_id}")
+            raise HTTPException(status_code=404, detail="Access denied")
+        
+        print(f"Downloading DICOM for image {image_id} (Orthanc ID: {image.orthanc_id})")
+        response = get_orthanc_instance(image.orthanc_id)
+        
+        print(f"Successfully prepared DICOM download for image {image_id}")
+        return StreamingResponse(response.raw, media_type="application/dicom", headers={
+            "Content-Disposition": f"attachment; filename=image_{image_id}.dcm"
+        })
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        print(f"Error downloading image {image_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to download image: {str(e)}")
 
-@router.get("/wado/{orthanc_id}")
+@router.get("/wado/{image_id}")
 def wado_image(
-    orthanc_id: str,
+    image_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Serve DICOM file for Cornerstone.js via backend (WADO-URI)"""
-    image = db.query(Image).filter(Image.orthanc_id == orthanc_id).first()
+    image = db.query(Image).filter(Image.id == image_id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     project = get_project(db, image.project_id, current_user)
@@ -383,18 +426,19 @@ def bulk_upload_images(
                     })
                     continue
                 
-                # Check if image already exists in this project
+                # Check if image already exists in this project and folder
                 existing_image = db.query(Image).filter(
                     Image.orthanc_id == orthanc_id,
-                    Image.project_id == project_id
+                    Image.project_id == project_id,
+                    Image.folder_id == folder_id
                 ).first()
                 
                 if existing_image:
-                    print(f"Image already exists in project: {file.filename}")
+                    print(f"Image already exists in project folder: {file.filename}")
                     skipped_images.append({
                         'filename': file.filename,
                         'orthanc_id': orthanc_id,
-                        'reason': 'Image already exists in this project'
+                        'reason': 'Image already exists in this folder within this project'
                     })
                     continue
                 

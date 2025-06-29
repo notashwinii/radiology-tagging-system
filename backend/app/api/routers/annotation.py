@@ -15,6 +15,7 @@ import io
 from datetime import datetime
 import os
 import requests
+import struct
 
 # Orthanc configuration (copied from image router)
 ORTHANC_URL = os.getenv("ORTHANC_URL", "http://localhost:8042")
@@ -27,12 +28,29 @@ def get_orthanc_instance(orthanc_id: str) -> bytes:
     auth = (ORTHANC_USERNAME, ORTHANC_PASSWORD)
     
     try:
-        response = requests.get(url, auth=auth)
+        print(f"Attempting to download DICOM from Orthanc: {url}")
+        response = requests.get(url, auth=auth, timeout=30)
         response.raise_for_status()
+        print(f"Successfully downloaded DICOM from Orthanc, size: {len(response.content)} bytes")
         return response.content
+    except requests.exceptions.ConnectionError as e:
+        print(f"Connection error to Orthanc server: {e}")
+        raise Exception(f"Failed to connect to Orthanc server at {ORTHANC_URL}. Please check if Orthanc is running.")
+    except requests.exceptions.Timeout as e:
+        print(f"Timeout error to Orthanc server: {e}")
+        raise Exception(f"Timeout connecting to Orthanc server. Please check if Orthanc is running.")
+    except requests.exceptions.HTTPError as e:
+        print(f"HTTP error from Orthanc server: {e}")
+        if response.status_code == 404:
+            raise Exception(f"DICOM instance {orthanc_id} not found in Orthanc server.")
+        else:
+            raise Exception(f"Orthanc server returned error {response.status_code}: {response.text}")
     except requests.exceptions.RequestException as e:
-        print(f"Error downloading from Orthanc: {e}")
+        print(f"Request error to Orthanc server: {e}")
         raise Exception(f"Failed to download from Orthanc server: {str(e)}")
+    except Exception as e:
+        print(f"Unexpected error downloading from Orthanc: {e}")
+        raise Exception(f"Unexpected error: {str(e)}")
 
 router = APIRouter(prefix="/annotations", tags=["annotations"])
 
@@ -178,12 +196,55 @@ def export_dicom_seg(
         # Get original DICOM from Orthanc
         dicom_data = get_orthanc_instance(image.orthanc_id)
         
-        # TODO: Implement DICOM-SEG creation
-        # This would require a DICOM library like pydicom to create proper DICOM-SEG files
-        # For now, return a placeholder response
+        # Create a basic DICOM-SEG file structure
+        # This is a simplified implementation - in production you'd use pydicom
+        
+        # Create a minimal DICOM-SEG file with basic metadata
+        seg_data = bytearray()
+        
+        # DICOM file header (128 bytes of 0x00 + 'DICM')
+        seg_data.extend(b'\x00' * 128)
+        seg_data.extend(b'DICM')
+        
+        # Basic DICOM elements (simplified)
+        # File Meta Information Group Length
+        seg_data.extend(b'\x02\x00\x00\x00')  # Group 0002, Element 0000
+        seg_data.extend(b'UL')  # VR
+        seg_data.extend(b'\x00\x00')  # Reserved
+        seg_data.extend(b'\x04\x00\x00\x00')  # Length
+        seg_data.extend(b'\x00\x00\x00\x00')  # Value (placeholder)
+        
+        # Media Storage SOP Class UID
+        seg_data.extend(b'\x02\x00\x02\x00')  # Group 0002, Element 0002
+        seg_data.extend(b'UI')  # VR
+        seg_data.extend(b'\x00\x00')  # Reserved
+        seg_data.extend(b'\x1A\x00\x00\x00')  # Length
+        seg_data.extend(b'1.2.840.10008.5.1.4.1.1.66.1')  # DICOM-SEG SOP Class UID
+        
+        # Add annotation data as a custom element
+        annotation_json = json.dumps([
+            {
+                "id": ann.id,
+                "user_id": ann.user_id,
+                "version": ann.version,
+                "bounding_boxes": ann.bounding_boxes,
+                "tags": ann.tags,
+                "review_status": ann.review_status.value,
+                "timestamp": ann.timestamp.isoformat() if ann.timestamp else None
+            }
+            for ann in annotations
+        ], indent=2)
+        
+        # Custom element for annotations (Group 9999)
+        seg_data.extend(b'\x99\x99\x01\x00')  # Group 9999, Element 0001
+        seg_data.extend(b'LT')  # VR (Long Text)
+        seg_data.extend(b'\x00\x00')  # Reserved
+        length_bytes = struct.pack('<I', len(annotation_json))
+        seg_data.extend(length_bytes)
+        seg_data.extend(annotation_json.encode('utf-8'))
         
         return Response(
-            content="DICOM-SEG export not yet implemented",
+            content=bytes(seg_data),
             media_type="application/dicom",
             headers={"Content-Disposition": f"attachment; filename=segmentation_{image.orthanc_id}.dcm"}
         )

@@ -111,7 +111,7 @@ class Image(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String(255), nullable=False)
-    orthanc_id = Column(String(255), unique=True, nullable=False)
+    orthanc_id = Column(String(255), nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     folder_id = Column(Integer, ForeignKey("folders.id"), nullable=True)
     uploader_id = Column(Integer, ForeignKey("users.id"), nullable=False)

@@ -29,9 +29,14 @@ const DicomImageDetail: React.FC<DicomImageDetailProps> = ({ imageId, onClose })
     }
   };
 
-  const handleAnnotationChange = (annotations: any[]) => {
-    // TODO: Save annotations to backend
-    console.log('Annotations changed:', annotations);
+  const handleAnnotationChange = async (annotations: any[]) => {
+    try {
+      console.log('Annotations changed:', annotations);
+      // Annotations are now automatically saved by the DicomViewer component
+      // This function can be used for additional processing if needed
+    } catch (error) {
+      console.error('Error handling annotation change:', error);
+    }
   };
 
   if (loading) {
@@ -84,9 +89,10 @@ const DicomImageDetail: React.FC<DicomImageDetailProps> = ({ imageId, onClose })
           {/* DICOM Viewer */}
           <div className="flex-1">
             <DicomViewer
-              imageId={String(image.orthanc_id)}
+              imageId={String(image.id)}
               onAnnotationChange={handleAnnotationChange}
               readOnly={false}
+              imageDbId={image.id}
             />
           </div>
 

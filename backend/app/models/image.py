@@ -7,7 +7,7 @@ from .common import CommonModel
 class Image(CommonModel):
     __tablename__ = "images"
 
-    orthanc_id = Column(String, unique=True, index=True, nullable=False)
+    orthanc_id = Column(String, index=True, nullable=False)
     uploader_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     folder_id = Column(Integer, ForeignKey('folders.id'), nullable=True)  # Optional folder assignment

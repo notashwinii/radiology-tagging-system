@@ -436,6 +436,33 @@ export const api = {
     })
   },
 
+  // Annotation management
+  async createAnnotation(annotationData: {
+    image_id: number;
+    bounding_boxes: Array<{ x: number; y: number; w: number; h: number; label?: string }>;
+    tags?: string[];
+  }): Promise<any> {
+    return apiRequest<any>('/annotations/', {
+      method: 'POST',
+      body: JSON.stringify(annotationData),
+    })
+  },
+
+  async updateAnnotation(annotationId: number, annotationData: {
+    bounding_boxes?: Array<{ x: number; y: number; w: number; h: number; label?: string }>;
+    tags?: string[];
+    review_status?: string;
+  }): Promise<any> {
+    return apiRequest<any>(`/annotations/${annotationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(annotationData),
+    })
+  },
+
+  async getAnnotationsForImage(imageId: number): Promise<any[]> {
+    return apiRequest<any[]>(`/annotations/image/${imageId}`)
+  },
+
   // Annotation download and export functions
   async downloadImageAnnotations(imageId: number, format: 'json' | 'csv' = 'json'): Promise<Blob> {
     const token = localStorage.getItem('access-token')

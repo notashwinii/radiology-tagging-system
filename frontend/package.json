@@ -9,6 +9,9 @@
     "start": "next start"
   },
   "dependencies": {
+    "@cornerstonejs/core": "^3.25.0",
+    "@cornerstonejs/dicom-image-loader": "^3.25.0",
+    "@cornerstonejs/tools": "^3.25.0",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
