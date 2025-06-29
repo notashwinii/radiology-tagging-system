@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,8 @@ import {
   Home,
   Settings
 } from 'lucide-react'
+import { api, Workspace } from '@/lib/api'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -24,10 +26,28 @@ export default function Layout({ children, currentPage = 'home' }: LayoutProps) 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { user, logout } = useAuth()
   const router = useRouter()
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState(true)
+  const [workspaceError, setWorkspaceError] = useState('')
 
   const handleLogout = () => {
     logout(router)
   }
+
+  useEffect(() => {
+    const fetchWorkspaces = async () => {
+      try {
+        setLoadingWorkspaces(true)
+        const data = await api.getWorkspaces()
+        setWorkspaces(data)
+      } catch (err) {
+        setWorkspaceError('Failed to load workspaces')
+      } finally {
+        setLoadingWorkspaces(false)
+      }
+    }
+    fetchWorkspaces()
+  }, [])
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -66,7 +86,7 @@ export default function Layout({ children, currentPage = 'home' }: LayoutProps) 
         </div>
 
         {/* Navigation */}
-        <div className="flex-1 p-2">
+        <div className="flex-1 p-2 overflow-y-auto">
           <nav className="space-y-1">
             <Button
               variant={currentPage === 'home' ? 'secondary' : 'ghost'}
@@ -86,6 +106,36 @@ export default function Layout({ children, currentPage = 'home' }: LayoutProps) 
               {!sidebarCollapsed && <span className="ml-3">Settings</span>}
             </Button>
           </nav>
+
+          {/* Workspaces List */}
+          <div className="mt-6">
+            {!sidebarCollapsed && <div className="text-xs font-semibold text-muted-foreground mb-2 px-3">Workspaces</div>}
+            {loadingWorkspaces ? (
+              <div className="space-y-2 px-3">
+                <Skeleton className="h-6 w-full rounded" />
+                <Skeleton className="h-6 w-2/3 rounded" />
+              </div>
+            ) : workspaceError ? (
+              <div className="text-xs text-red-500 px-3">{workspaceError}</div>
+            ) : (
+              <div className="space-y-1">
+                {workspaces.map(ws => (
+                  <Button
+                    key={ws.id}
+                    variant="ghost"
+                    className={`w-full justify-start ${sidebarCollapsed ? 'px-2' : 'px-3'} ${currentPage === `workspace-${ws.id}` ? 'bg-muted' : ''}`}
+                    onClick={() => router.push(`/workspaces/${ws.id}`)}
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    {!sidebarCollapsed && <span className="ml-3 truncate">{ws.name}</span>}
+                  </Button>
+                ))}
+                {workspaces.length === 0 && !sidebarCollapsed && (
+                  <div className="text-xs text-muted-foreground px-3">No workspaces</div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Logout */}
