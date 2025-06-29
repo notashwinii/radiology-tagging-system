@@ -104,6 +104,11 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
   const [showBulkExport, setShowBulkExport] = useState(false)
   const [exporting, setExporting] = useState(false)
 
+  // Add state for folder error
+  const [folderError, setFolderError] = useState('');
+  // Add state for upload-specific errors
+  const [uploadError, setUploadError] = useState('');
+
   useEffect(() => {
     if (projectId) {
       loadProject()
@@ -181,7 +186,10 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
   const handleUploadImage = async () => {
     if (uploadMode === 'single') {
       if (!selectedFile || !project) return
-      
+      if (!selectedFolderId) {
+        setFolderError('Please select a folder');
+        return;
+      }
       try {
         const image = await api.uploadImage(
           selectedFile, 
@@ -194,16 +202,25 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
         setSelectedFile(null)
         setSelectedFolderId(null)
         setAssignedUserId("")
+        setFolderError("")
+        setUploadError("")
       } catch (err) {
         if (err instanceof ApiError) {
-          setError(err.message)
+          if (err.message.toLowerCase().includes("folder")) {
+            setFolderError(err.message)
+          } else {
+            setUploadError(typeof err.message === 'string' ? err.message : JSON.stringify(err.message))
+          }
         } else {
-          setError("Failed to upload image")
+          setUploadError(err && typeof err === 'object' && 'message' in err ? String((err as any).message) : 'Failed to upload image')
         }
       }
     } else {
       if (selectedFiles.length === 0 || !project) return
-      
+      if (!selectedFolderId) {
+        setFolderError('Please select a folder');
+        return;
+      }
       try {
         const uploadedImages = await api.bulkUploadImages(
           selectedFiles,
@@ -216,11 +233,12 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
         setSelectedFiles([])
         setSelectedFolderId(null)
         setAssignedUserId("")
+        setUploadError("")
       } catch (err) {
         if (err instanceof ApiError) {
-          setError(err.message)
+          setUploadError(typeof err.message === 'string' ? err.message : JSON.stringify(err.message))
         } else {
-          setError("Failed to upload images")
+          setUploadError(err && typeof err === 'object' && 'message' in err ? String((err as any).message) : 'Failed to upload images')
         }
       }
     }
@@ -239,20 +257,12 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
 
     // Filter by folder
     if (filterByFolder !== null) {
-      if (filterByFolder === -1) {
-        // Unknown folder (no folder assigned)
-        filtered = filtered.filter(img => !img.folder_id)
-      } else {
-        filtered = filtered.filter(img => img.folder_id === filterByFolder)
-      }
+      filtered = filtered.filter(img => img.folder_id === filterByFolder)
     }
 
     // Filter by assignment
     if (filterByAssignment !== null) {
-      if (filterByAssignment === -1) {
-        // Unassigned
-        filtered = filtered.filter(img => !img.assigned_user_id)
-      } else if (filterByAssignment === -2) {
+      if (filterByAssignment === -2) {
         // Assigned to me
         filtered = filtered.filter(img => img.assigned_user_id === user?.id)
       } else {
@@ -405,6 +415,17 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
     )
   }
 
+  // Helper to reset upload modal state
+  const resetUploadModal = () => {
+    setShowUploadImage(false);
+    setUploadError("");
+    setFolderError("");
+    setSelectedFile(null);
+    setSelectedFiles([]);
+    setSelectedFolderId(null);
+    setAssignedUserId("");
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -508,53 +529,8 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
                     <div className="mb-6">
                       <h3 className="text-lg font-semibold mb-4">Folders</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {/* Unknown Folder */}
-                        <div 
-                          className="card hover:bg-accent cursor-pointer"
-                          onClick={() => handleFolderSelect(-1)}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <FolderOpen className="h-5 w-5 text-blue-400" />
-                              <span className="font-medium">Unknown</span>
-                            </div>
-                            {isProjectAdmin(project) && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setSelectedFolderForAssignment({ id: -1, name: 'Unknown', project_id: project.id } as Folder)
-                                  setShowFolderAssignment(true)
-                                }}
-                              >
-                                <UserPlus className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Images without folder assignment
-                          </div>
-                        </div>
-
-                        {/* Assigned to Me Folder */}
-                        <div 
-                          className="card hover:bg-accent cursor-pointer"
-                          onClick={() => setFilterByAssignment(-2)}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <FolderOpen className="h-5 w-5 text-green-400" />
-                              <span className="font-medium">Assigned to Me</span>
-                            </div>
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Images assigned to you
-                          </div>
-                        </div>
-
                         {/* Regular folders */}
-                        {folders.map((folder) => (
+                        {folders.filter(f => f.name !== 'Unknown').map((folder) => (
                           <div 
                             key={folder.id}
                             className="card hover:bg-accent cursor-pointer"
@@ -638,7 +614,6 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="all">All assignments</SelectItem>
-                                <SelectItem value="-1">Unassigned</SelectItem>
                                 <SelectItem value="-2">Assigned to me</SelectItem>
                                 {allUsers.map((user) => (
                                   <SelectItem key={user.id} value={user.id.toString()}>
@@ -657,7 +632,7 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
                       <div className="mb-4 flex flex-wrap gap-2">
                         {filterByAssignment !== null && (
                           <Badge variant="secondary" className="flex items-center gap-1">
-                            Assignment: {filterByAssignment === -1 ? 'Unassigned' : filterByAssignment === -2 ? 'Assigned to me' : allUsers.find(u => u.id === filterByAssignment)?.email}
+                            Assignment: {filterByAssignment === -2 ? 'Assigned to me' : allUsers.find(u => u.id === filterByAssignment)?.email}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -701,7 +676,7 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
                                   onImageDelete={handleImageDelete}
                                 />
                               </div>
-                              <div className="text-sm font-medium mb-1">{image.filename}</div>
+                              <div className="text-sm font-medium mb-1">{image.thumbnail_url}</div>
                               <div className="text-xs text-muted-foreground">
                                 Uploaded by: {image.uploader.first_name} {image.uploader.last_name}
                               </div>
@@ -784,7 +759,10 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
       </div>
 
       {/* Upload Image Dialog */}
-      <Dialog open={showUploadImage} onOpenChange={setShowUploadImage}>
+      <Dialog open={showUploadImage} onOpenChange={(open) => {
+        if (!open) resetUploadModal();
+        else setShowUploadImage(true);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Upload Images</DialogTitle>
@@ -792,6 +770,11 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
               Upload DICOM images to this project.
             </DialogDescription>
           </DialogHeader>
+          {uploadError && (
+            <Alert variant="destructive">
+              <AlertDescription>{uploadError}</AlertDescription>
+            </Alert>
+          )}
           <div className="space-y-4">
             <div className="flex gap-2">
               <Button
@@ -837,30 +820,20 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
             )}
 
             <div>
-              <Label htmlFor="folder">Folder (Optional)</Label>
-              <Select value={selectedFolderId?.toString() || "none"} onValueChange={(value) => {
-                if (value === "create") {
-                  setShowCreateFolder(true)
-                } else {
-                  setSelectedFolderId(value === "none" ? null : parseInt(value))
-                }
-              }}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select folder" />
+              <Label htmlFor="folder">Folder <span className="text-red-500">*</span></Label>
+              <Select value={selectedFolderId?.toString() || ''} onValueChange={(v) => { setSelectedFolderId(parseInt(v)); setFolderError(''); }} required>
+                <SelectTrigger className={`input${folderError ? ' ring-2 ring-red-500' : ''}`}>
+                  <SelectValue placeholder="Select a folder" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No folder</SelectItem>
                   {folders.map((folder) => (
                     <SelectItem key={folder.id} value={folder.id.toString()}>
                       {folder.name}
                     </SelectItem>
                   ))}
-                  <SelectItem value="create" className="flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Create Folder
-                  </SelectItem>
                 </SelectContent>
               </Select>
+              {folderError && <div className="text-red-500 text-xs mt-1">{folderError}</div>}
             </div>
 
             <div>
@@ -881,7 +854,7 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowUploadImage(false)}>
+            <Button variant="outline" onClick={resetUploadModal}>
               Cancel
             </Button>
             <Button 
@@ -952,7 +925,6 @@ export function ProjectDashboard({ projectId }: ProjectDashboardProps) {
           </DialogHeader>
           <FolderManager 
             projectId={project.id}
-            onFoldersChange={refreshFolders}
           />
         </DialogContent>
       </Dialog>

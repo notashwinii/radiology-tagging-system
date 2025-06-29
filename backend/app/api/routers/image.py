@@ -92,7 +92,7 @@ def get_orthanc_wado(orthanc_id):
 def upload_image(
     file: UploadFile = File(...),
     project_id: int = Form(...),
-    folder_id: Optional[int] = Form(None),
+    folder_id: int = Form(...),
     assigned_user_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -124,6 +124,14 @@ def upload_image(
         
         print(f"Project found: {project['name']}")
         
+        # Validate folder
+        folder = db.query(Folder).filter(
+            Folder.id == folder_id,
+            Folder.project_id == project_id
+        ).first()
+        if not folder:
+            raise HTTPException(status_code=404, detail="Folder not found or does not belong to this project")
+        
         # Upload to Orthanc
         orthanc_id = None
         try:
@@ -144,15 +152,6 @@ def upload_image(
                 status_code=409, 
                 detail=f"Image already exists in this folder within this project (Orthanc ID: {orthanc_id})"
             )
-        
-        # Validate folder if specified
-        if folder_id:
-            folder = db.query(Folder).filter(
-                Folder.id == folder_id,
-                Folder.project_id == project_id
-            ).first()
-            if not folder:
-                raise HTTPException(status_code=404, detail="Folder not found or does not belong to this project")
         
         # Fetch DICOM metadata from Orthanc
         dicom_metadata = None
@@ -367,7 +366,7 @@ def wado_image(
 def bulk_upload_images(
     files: List[UploadFile] = File(...),
     project_id: int = Form(...),
-    folder_id: Optional[int] = Form(None),
+    folder_id: int = Form(...),
     assigned_user_id: Optional[int] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -385,6 +384,14 @@ def bulk_upload_images(
             raise HTTPException(status_code=404, detail="Project not found or access denied")
         
         print(f"Project found: {project['name']}")
+        
+        # Validate folder
+        folder = db.query(Folder).filter(
+            Folder.id == folder_id,
+            Folder.project_id == project_id
+        ).first()
+        if not folder:
+            raise HTTPException(status_code=404, detail="Folder not found or does not belong to this project")
         
         uploaded_images = []
         skipped_images = []
@@ -441,15 +448,6 @@ def bulk_upload_images(
                         'reason': 'Image already exists in this folder within this project'
                     })
                     continue
-                
-                # Validate folder if specified
-                if folder_id:
-                    folder = db.query(Folder).filter(
-                        Folder.id == folder_id,
-                        Folder.project_id == project_id
-                    ).first()
-                    if not folder:
-                        raise HTTPException(status_code=404, detail="Folder not found or does not belong to this project")
                 
                 # Fetch DICOM metadata from Orthanc
                 dicom_metadata = None

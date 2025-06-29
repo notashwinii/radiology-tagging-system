@@ -25,6 +25,9 @@ export default function UploadImagePage() {
   const [users, setUsers] = useState<any[]>([])
   const { user } = useAuth()
   const router = useRouter()
+  const [fileError, setFileError] = useState('')
+  const [projectError, setProjectError] = useState('')
+  const [folderError, setFolderError] = useState('')
 
   // Load projects and users on component mount
   useEffect(() => {
@@ -60,20 +63,37 @@ export default function UploadImagePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedFile || !selectedProject) return
+    let hasError = false
+    setFileError('')
+    setProjectError('')
+    setFolderError('')
+
+    if (!selectedFile) {
+      setFileError('File is required')
+      hasError = true
+    }
+    if (!selectedProject) {
+      setProjectError('Project is required')
+      hasError = true
+    }
+    if (!selectedFolder) {
+      setFolderError('Folder is required')
+      hasError = true
+    }
+    if (hasError) return
 
     setIsLoading(true)
     setError('')
     setSuccess('')
 
     try {
+      if (!selectedFile) return; // type guard for TS
       await api.uploadImage(
         selectedFile,
         parseInt(selectedProject),
-        selectedFolder ? parseInt(selectedFolder) : undefined,
+        parseInt(selectedFolder),
         assignedUser ? parseInt(assignedUser) : undefined
       )
-      
       setSuccess('Image uploaded successfully!')
       setSelectedFile(null)
       setSelectedProject('')
@@ -132,10 +152,11 @@ export default function UploadImagePage() {
                   id="file"
                   type="file"
                   accept=".dcm,.dicom"
-                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  onChange={(e) => { setSelectedFile(e.target.files?.[0] || null); setFileError(''); }}
                   required
-                  className="input"
+                  className={`input${fileError ? ' ring-2 ring-red-500' : ''}`}
                 />
+                {fileError && <div className="text-red-500 text-xs mt-1">{fileError}</div>}
                 <p className="text-sm text-secondary">
                   Only .dcm and .dicom files are supported
                 </p>
@@ -143,8 +164,8 @@ export default function UploadImagePage() {
               
               <div className="space-y-2">
                 <Label htmlFor="project">Project</Label>
-                <Select value={selectedProject} onValueChange={handleProjectChange}>
-                  <SelectTrigger className="input">
+                <Select value={selectedProject} onValueChange={(v) => { handleProjectChange(v); setProjectError(''); }} required>
+                  <SelectTrigger className={`input${projectError ? ' ring-2 ring-red-500' : ''}`}>
                     <SelectValue placeholder="Select a project" />
                   </SelectTrigger>
                   <SelectContent>
@@ -155,17 +176,17 @@ export default function UploadImagePage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {projectError && <div className="text-red-500 text-xs mt-1">{projectError}</div>}
               </div>
               
               {selectedProject && (
                 <div className="space-y-2">
-                  <Label htmlFor="folder">Folder (Optional)</Label>
-                  <Select value={selectedFolder} onValueChange={setSelectedFolder}>
-                    <SelectTrigger className="input">
-                      <SelectValue placeholder="Select a folder (optional)" />
+                  <Label htmlFor="folder">Folder <span className="text-red-500">*</span></Label>
+                  <Select value={selectedFolder} onValueChange={(v) => { setSelectedFolder(v); setFolderError(''); }} required>
+                    <SelectTrigger className={`input${folderError ? ' ring-2 ring-red-500' : ''}`}>
+                      <SelectValue placeholder="Select a folder" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No folder</SelectItem>
                       {folders.map((folder) => (
                         <SelectItem key={folder.id} value={folder.id.toString()}>
                           {folder.name}
@@ -173,6 +194,7 @@ export default function UploadImagePage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {folderError && <div className="text-red-500 text-xs mt-1">{folderError}</div>}
                 </div>
               )}
               
@@ -199,7 +221,7 @@ export default function UploadImagePage() {
                 <Button 
                   type="submit" 
                   className="flex-1" 
-                  disabled={isLoading || !selectedFile || !selectedProject}
+                  disabled={isLoading || !selectedFile || !selectedProject || !selectedFolder}
                 >
                   <Upload className="h-4 w-4 mr-2" />
                   {isLoading ? 'Uploading...' : 'Upload Image'}
