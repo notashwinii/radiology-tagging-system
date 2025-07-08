@@ -12,7 +12,13 @@ import {
   Archive,
   ChevronDown,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Square,
+  Ruler,
+  Circle,
+  ArrowUpRight,
+  Move3D,
+  Eraser
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -37,6 +43,7 @@ export default function DicomViewerPage() {
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState('RectangleRoi');
 
   useEffect(() => {
     if (!imageId || isNaN(imageId)) {
@@ -274,11 +281,64 @@ export default function DicomViewerPage() {
       <div className="flex-1 flex">
         {/* DICOM Viewer */}
         <div className="flex-1">
+          {/* Annotation Tool Toolbar */}
+          <div className="flex gap-2 mb-2">
+            <Button
+              variant={activeTool === 'RectangleRoi' ? 'default' : 'outline'}
+              size="icon"
+              onClick={() => setActiveTool('RectangleRoi')}
+              title="Rectangle ROI"
+            >
+              <Square className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={activeTool === 'Length' ? 'default' : 'outline'}
+              size="icon"
+              onClick={() => setActiveTool('Length')}
+              title="Length"
+            >
+              <Ruler className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={activeTool === 'EllipticalRoi' ? 'default' : 'outline'}
+              size="icon"
+              onClick={() => setActiveTool('EllipticalRoi')}
+              title="Elliptical ROI"
+            >
+              <Circle className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={activeTool === 'ArrowAnnotate' ? 'default' : 'outline'}
+              size="icon"
+              onClick={() => setActiveTool('ArrowAnnotate')}
+              title="Arrow Annotate"
+            >
+              <ArrowUpRight className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={activeTool === 'Bidirectional' ? 'default' : 'outline'}
+              size="icon"
+              onClick={() => setActiveTool('Bidirectional')}
+              title="Bidirectional"
+            >
+              <Move3D className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={activeTool === 'Eraser' ? 'default' : 'outline'}
+              size="icon"
+              onClick={() => setActiveTool('Eraser')}
+              title="Eraser (Clear All)"
+            >
+              <Eraser className="h-5 w-5" />
+            </Button>
+          </div>
           <DicomViewer
             imageId={String(image.id)}
             onAnnotationChange={handleAnnotationChange}
             readOnly={false}
             imageDbId={image.id}
+            activeTool={activeTool}
+            onErase={() => setActiveTool('RectangleRoi')}
           />
         </div>
 
