@@ -46,19 +46,10 @@ export default function DicomViewerPage() {
   const [annotations, setAnnotations] = useState<any[]>([]); // Store current annotations
   const [activeTool, setActiveTool] = useState('RectangleRoi');
 
-  useEffect(() => {
-    if (!imageId || isNaN(imageId)) {
-      setError('Invalid image ID');
-      setLoading(false);
-      return;
-    }
-
-    fetchImageDetails();
-  }, [imageId]);
-
-  const fetchImageDetails = async () => {
+  // Define fetchImageDetails before useEffect
+  const fetchImageDetails = async (imgId: number) => {
     try {
-      const imageData = await api.getImage(imageId);
+      const imageData = await api.getImage(imgId);
       setImage(imageData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -67,10 +58,21 @@ export default function DicomViewerPage() {
     }
   };
 
+  useEffect(() => {
+    if (!imageId || isNaN(imageId)) return;
+
+    // Always fetch image details so the DICOM can load
+    fetchImageDetails(imageId);
+
+    // Load annotation state from backend
+    api.loadAnnotationState(imageId).then(({ annotations, dicom_metadata }) => {
+      setAnnotations(annotations);
+      // Optionally set dicom_metadata if you want to display/restore it
+    });
+  }, [imageId]);
+
   const handleAnnotationChange = (annotations: any[]) => {
     setAnnotations(annotations);
-    // Annotations are now automatically saved by the DicomViewer component
-    // This function can be used for additional processing if needed
   };
 
   // Helper to convert annotations to CSV
@@ -228,6 +230,21 @@ export default function DicomViewerPage() {
           >
             <Download className="h-4 w-4 mr-2" />
             {downloading === 'dicom' ? 'Downloading...' : 'Download DICOM'}
+          </Button>
+
+          {/* Manual Save Annotations Button */}
+          <Button
+            onClick={async () => {
+              if (image) {
+                await api.saveAnnotationState(image.id, annotations, image.dicom_metadata, null); // explicitly pass null for tags
+                setSuccess('Annotations saved!');
+              }
+            }}
+            variant="outline"
+            size="sm"
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Save Annotations
           </Button>
 
           {/* Export Annotations Dropdown */}

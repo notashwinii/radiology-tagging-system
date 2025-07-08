@@ -439,7 +439,8 @@ export const api = {
   // Annotation management
   async createAnnotation(annotationData: {
     image_id: number;
-    bounding_boxes: Array<{ x: number; y: number; w: number; h: number; label?: string }>;
+    data: any;
+    dicom_metadata?: any;
     tags?: string[];
   }): Promise<any> {
     return apiRequest<any>('/annotations/', {
@@ -449,7 +450,8 @@ export const api = {
   },
 
   async updateAnnotation(annotationId: number, annotationData: {
-    bounding_boxes?: Array<{ x: number; y: number; w: number; h: number; label?: string }>;
+    data?: any;
+    dicom_metadata?: any;
     tags?: string[];
     review_status?: string;
   }): Promise<any> {
@@ -461,6 +463,31 @@ export const api = {
 
   async getAnnotationsForImage(imageId: number): Promise<any[]> {
     return apiRequest<any[]>(`/annotations/image/${imageId}`)
+  },
+
+  // Helper for saving full annotation state
+  async saveAnnotationState(image_id: number, annotations: any[], dicom_metadata: any, tags?: string[]) {
+    // Always send a valid annotations array
+    const safeAnnotations = Array.isArray(annotations) ? annotations : [];
+    return this.createAnnotation({
+      image_id,
+      data: { annotations: safeAnnotations },
+      dicom_metadata,
+      tags
+    });
+  },
+
+  // Helper for loading full annotation state
+  async loadAnnotationState(image_id: number) {
+    const annotationList = await this.getAnnotationsForImage(image_id);
+    if (annotationList.length > 0) {
+      // Use the latest annotation (or pick by user/version as needed)
+      const annotation = annotationList[annotationList.length - 1];
+      const { annotations } = annotation.data || {};
+      const dicom_metadata = annotation.dicom_metadata || null;
+      return { annotations: annotations || [], dicom_metadata };
+    }
+    return { annotations: [], dicom_metadata: null };
   },
 
   // Annotation download and export functions
