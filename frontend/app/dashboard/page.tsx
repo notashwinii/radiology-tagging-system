@@ -8,9 +8,9 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-primary flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="text-lg text-primary">Loading...</div>
+          <div className="text-lg text-foreground">Loading...</div>
         </div>
       </div>
     )
@@ -18,9 +18,9 @@ export default function DashboardPage() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-primary flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="text-lg text-primary">Please log in to access the dashboard.</div>
+          <div className="text-lg text-foreground">Please log in to access the dashboard.</div>
         </div>
       </div>
     )

@@ -168,30 +168,30 @@ export function FolderManager({ projectId, onFolderSelect, selectedFolderId }: F
       <div key={folder.id} style={{ marginLeft: `${level * 20}px` }}>
         <Card 
           className={`mb-2 cursor-pointer transition-colors ${
-            selectedFolderId === folder.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+            selectedFolderId === folder.id ? 'border-primary bg-accent' : 'hover:bg-accent'
           }`}
           onClick={() => onFolderSelect?.(folder.id)}
         >
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <FolderIcon className="h-4 w-4 text-blue-600" />
+                <FolderIcon className="h-4 w-4 text-primary" />
                 <div>
                   <div className="font-medium text-sm">{folder.name}</div>
-                  <div className="text-xs text-gray-500">{getFolderPath(folder)}</div>
+                  <div className="text-xs text-muted-foreground">{getFolderPath(folder)}</div>
                   {folder.description && (
-                    <div className="text-xs text-gray-600 mt-1">{folder.description}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{folder.description}</div>
                   )}
                 </div>
               </div>
               <div className="flex items-center space-x-2">
                 <div className="flex items-center space-x-1">
-                  <FileImage className="h-3 w-3 text-gray-400" />
-                  <span className="text-xs text-gray-500">{folder.image_count || 0}</span>
+                  <FileImage className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">{folder.image_count || 0}</span>
                 </div>
                 <div className="flex items-center space-x-1">
-                  <FolderTree className="h-3 w-3 text-gray-400" />
-                  <span className="text-xs text-gray-500">{folder.subfolder_count || 0}</span>
+                  <FolderTree className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">{folder.subfolder_count || 0}</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <Button
@@ -312,7 +312,7 @@ export function FolderManager({ projectId, onFolderSelect, selectedFolderId }: F
       <div className="space-y-2">
         {folders.length === 0 ? (
           <Card>
-            <CardContent className="p-4 text-center text-gray-500">
+            <CardContent className="p-4 text-center text-muted-foreground">
               No folders created yet. Create your first folder to organize images.
             </CardContent>
           </Card>
