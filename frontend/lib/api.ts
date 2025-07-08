@@ -469,12 +469,15 @@ export const api = {
   async saveAnnotationState(image_id: number, annotations: any[], dicom_metadata: any, tags?: string[]) {
     // Always send a valid annotations array
     const safeAnnotations = Array.isArray(annotations) ? annotations : [];
-    return this.createAnnotation({
+    const payload: any = {
       image_id,
       data: { annotations: safeAnnotations },
-      dicom_metadata,
-      tags
-    });
+      dicom_metadata
+    };
+    if (Array.isArray(tags)) {
+      payload.tags = tags;
+    }
+    return this.createAnnotation(payload);
   },
 
   // Helper for loading full annotation state

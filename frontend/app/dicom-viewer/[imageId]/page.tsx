@@ -64,10 +64,12 @@ export default function DicomViewerPage() {
     // Always fetch image details so the DICOM can load
     fetchImageDetails(imageId);
 
-    // Load annotation state from backend
-    api.loadAnnotationState(imageId).then(({ annotations, dicom_metadata }) => {
-      setAnnotations(annotations);
-      // Optionally set dicom_metadata if you want to display/restore it
+    // Load and flatten annotation state from backend
+    api.getAnnotationsForImage(imageId).then((annotationRecords) => {
+      const allAnnotations = annotationRecords.flatMap((rec: any) =>
+        Array.isArray(rec.data?.annotations) ? rec.data.annotations : []
+      );
+      setAnnotations(allAnnotations);
     });
   }, [imageId]);
 
@@ -236,7 +238,7 @@ export default function DicomViewerPage() {
           <Button
             onClick={async () => {
               if (image) {
-                await api.saveAnnotationState(image.id, annotations, image.dicom_metadata, null); // explicitly pass null for tags
+                await api.saveAnnotationState(image.id, annotations, image.dicom_metadata, []); // always send tags as []
                 setSuccess('Annotations saved!');
               }
             }}
@@ -370,6 +372,7 @@ export default function DicomViewerPage() {
             imageDbId={image.id}
             activeTool={activeTool}
             onErase={() => setActiveTool('RectangleRoi')}
+            initialAnnotations={annotations}
           />
         </div>
 

@@ -42,9 +42,10 @@ interface DicomViewerProps {
   readOnly?: boolean;
   activeTool?: string; // NEW: tool name to activate
   onErase?: () => void; // NEW: callback for eraser
+  initialAnnotations?: any[]; // NEW: initial annotations to restore
 }
 
-const DicomViewer: React.FC<DicomViewerProps> = ({ imageId, activeTool, onErase, onAnnotationChange }) => {
+const DicomViewer: React.FC<DicomViewerProps> = ({ imageId, activeTool, onErase, onAnnotationChange, initialAnnotations }) => {
   const elementRef = useRef<HTMLDivElement>(null);
 
   // Ensure cornerstone and tools are initialized only once on mount
@@ -182,6 +183,26 @@ const DicomViewer: React.FC<DicomViewerProps> = ({ imageId, activeTool, onErase,
     };
   }, [onAnnotationChange, imageId]);
 
+  // Restore initialAnnotations into tool state
+  useEffect(() => {
+    const element = elementRef.current;
+    if (!element || !initialAnnotations) return;
+
+    // List of all annotation tool names
+    const toolNames = ['RectangleRoi', 'Length', 'EllipticalRoi', 'ArrowAnnotate', 'Bidirectional'];
+    // Clear all tool states
+    toolNames.forEach(toolName => {
+      cornerstoneTools.clearToolState(element, toolName);
+    });
+    // Add each annotation to the correct tool
+    initialAnnotations.forEach(annotation => {
+      if (annotation.toolName && toolNames.includes(annotation.toolName)) {
+        cornerstoneTools.addToolState(element, annotation.toolName, annotation);
+      }
+    });
+    cornerstone.updateImage(element);
+  }, [initialAnnotations, imageId]);
+
   // Eraser mode: delete single annotation on click
   useEffect(() => {
     const element = elementRef.current;
@@ -218,8 +239,28 @@ const DicomViewer: React.FC<DicomViewerProps> = ({ imageId, activeTool, onErase,
               const isNear = toolClass.prototype.pointNearTool(element as HTMLElement, annotation, coords);
               if (isNear) {
                 console.log(`[Eraser] Deleting annotation from ${toolName} at index ${i}`, annotation);
-                toolState.data.splice(i, 1); // Remove only this annotation
+                // Make a copy of the current annotations
+                const remaining = toolState.data.slice();
+                remaining.splice(i, 1); // Remove the annotation at index i
+
+                // Clear and re-add remaining annotations for this tool
+                cornerstoneTools.clearToolState(element, toolName);
+                remaining.forEach((ann: any) => {
+                  cornerstoneTools.addToolState(element, toolName, ann);
+                });
                 cornerstone.updateImage(element as HTMLElement);
+                // Optionally, trigger annotation change
+                if (onAnnotationChange) {
+                  // Re-collect all annotations and notify parent
+                  const allAnnotations: any[] = [];
+                  for (const tn of toolNames) {
+                    const ts = cornerstoneTools.getToolState(element, tn);
+                    if (ts && Array.isArray(ts.data)) {
+                      allAnnotations.push(...ts.data.map((a: any) => ({ ...a, toolName: tn })));
+                    }
+                  }
+                  onAnnotationChange(allAnnotations);
+                }
                 deleted = true;
                 break; // Only delete one annotation
               }
