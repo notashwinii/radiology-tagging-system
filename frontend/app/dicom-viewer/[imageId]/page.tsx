@@ -43,6 +43,7 @@ export default function DicomViewerPage() {
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [annotations, setAnnotations] = useState<any[]>([]); // Store current annotations
   const [activeTool, setActiveTool] = useState('RectangleRoi');
 
   useEffect(() => {
@@ -66,15 +67,20 @@ export default function DicomViewerPage() {
     }
   };
 
-  const handleAnnotationChange = async (annotations: any[]) => {
-    try {
-      console.log('Annotations changed:', annotations);
-      // Annotations are now automatically saved by the DicomViewer component
-      // This function can be used for additional processing if needed
-    } catch (error) {
-      console.error('Error handling annotation change:', error);
-    }
+  const handleAnnotationChange = (annotations: any[]) => {
+    setAnnotations(annotations);
+    // Annotations are now automatically saved by the DicomViewer component
+    // This function can be used for additional processing if needed
   };
+
+  // Helper to convert annotations to CSV
+  function convertAnnotationsToCSV(annotations: any[]): string {
+    if (!annotations.length) return '';
+    const keys = Object.keys(annotations[0]);
+    const header = keys.join(',');
+    const rows = annotations.map(a => keys.map(k => JSON.stringify(a[k] ?? '')).join(','));
+    return [header, ...rows].join('\n');
+  }
 
   const handleBack = () => {
     router.back();
@@ -112,16 +118,24 @@ export default function DicomViewerPage() {
   const handleDownloadAnnotations = async (format: 'json' | 'csv') => {
     try {
       setDownloading(`annotations-${format}`);
-      const blob = await api.downloadImageAnnotations(imageId, format);
+      let blob;
+      if (format === 'json') {
+        blob = new Blob([
+          JSON.stringify({
+            annotations,
+            dicom_metadata: image?.dicom_metadata ?? null,
+          }, null, 2)
+        ], { type: 'application/json' });
+      } else {
+        // Convert annotations to CSV
+        const csv = convertAnnotationsToCSV(annotations);
+        blob = new Blob([csv], { type: 'text/csv' });
+      }
       const filename = `annotations_image_${imageId}.${format}`;
       await downloadFile(blob, filename);
       setSuccess(`Annotations downloaded as ${format.toUpperCase()}`);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Failed to download annotations');
-      }
+      setError('Failed to download annotations');
     } finally {
       setDownloading(null);
     }

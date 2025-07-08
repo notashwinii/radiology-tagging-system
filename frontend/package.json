@@ -52,6 +52,7 @@
     "date-fns": "latest",
     "dicom-parser": "^1.8.21",
     "embla-carousel-react": "8.5.1",
+    "file-saver": "^2.0.5",
     "hammerjs": "^2.0.8",
     "input-otp": "1.4.1",
     "lucide-react": "^0.454.0",

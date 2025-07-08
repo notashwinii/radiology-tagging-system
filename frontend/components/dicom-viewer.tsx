@@ -44,7 +44,7 @@ interface DicomViewerProps {
   onErase?: () => void; // NEW: callback for eraser
 }
 
-const DicomViewer: React.FC<DicomViewerProps> = ({ imageId, activeTool, onErase }) => {
+const DicomViewer: React.FC<DicomViewerProps> = ({ imageId, activeTool, onErase, onAnnotationChange }) => {
   const elementRef = useRef<HTMLDivElement>(null);
 
   // Ensure cornerstone and tools are initialized only once on mount
@@ -143,6 +143,44 @@ const DicomViewer: React.FC<DicomViewerProps> = ({ imageId, activeTool, onErase 
     console.log('[DicomViewer] Setting active tool:', activeTool);
     cornerstoneTools.setToolActive(activeTool, { mouseButtonMask: 1 });
   }, [activeTool, onErase]);
+
+  // Listen for annotation changes and call onAnnotationChange
+  useEffect(() => {
+    const element = elementRef.current;
+    if (!element || !onAnnotationChange) return;
+
+    // List of all annotation tool names
+    const toolNames = ['RectangleRoi', 'Length', 'EllipticalRoi', 'ArrowAnnotate', 'Bidirectional'];
+
+    function collectAllAnnotations(): any[] {
+      let all: any[] = [];
+      for (const toolName of toolNames) {
+        const toolState = cornerstoneTools.getToolState(element as HTMLElement, toolName);
+        if (toolState && Array.isArray(toolState.data)) {
+          all = all.concat(toolState.data.map((a: any) => ({ ...a, toolName })));
+        }
+      }
+      return all;
+    }
+
+    function handleAnnotationChange() {
+      const allAnnotations = collectAllAnnotations();
+      if (onAnnotationChange) {
+        onAnnotationChange(allAnnotations);
+      }
+    }
+
+    // Listen to all relevant events
+    (element as HTMLElement).addEventListener('cornerstonetoolsmeasurementadded', handleAnnotationChange);
+    (element as HTMLElement).addEventListener('cornerstonetoolsmeasurementmodified', handleAnnotationChange);
+    (element as HTMLElement).addEventListener('cornerstonetoolsmeasurementremoved', handleAnnotationChange);
+
+    return () => {
+      (element as HTMLElement).removeEventListener('cornerstonetoolsmeasurementadded', handleAnnotationChange);
+      (element as HTMLElement).removeEventListener('cornerstonetoolsmeasurementmodified', handleAnnotationChange);
+      (element as HTMLElement).removeEventListener('cornerstonetoolsmeasurementremoved', handleAnnotationChange);
+    };
+  }, [onAnnotationChange, imageId]);
 
   // Eraser mode: delete single annotation on click
   useEffect(() => {
