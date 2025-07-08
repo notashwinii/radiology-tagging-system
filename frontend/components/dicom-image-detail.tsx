@@ -1,194 +1,364 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import DicomViewer from './dicom-viewer';
-import { api, Image } from '../lib/api';
+import { api } from '@/lib/api';
+import { Button } from './ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Badge } from './ui/badge';
+import { 
+  Download, 
+  FileText, 
+  Database, 
+  Archive,
+  ChevronDown,
+  X
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from './ui/dropdown-menu';
+
+interface Image {
+  id: number;
+  orthanc_id: string;
+  uploader?: {
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
+  assigned_user?: {
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
+  upload_time?: string;
+  dicom_metadata?: any;
+}
 
 interface DicomImageDetailProps {
-  imageId: number;
+  image: Image;
   onClose: () => void;
 }
 
-const DicomImageDetail: React.FC<DicomImageDetailProps> = ({ imageId, onClose }) => {
-  const [image, setImage] = useState<Image | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function DicomImageDetail({ image, onClose }: DicomImageDetailProps) {
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchImageDetails();
-  }, [imageId]);
+  const downloadFile = async (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
 
-  const fetchImageDetails = async () => {
+  const handleDownloadDicom = async () => {
     try {
-      const imageData = await api.getImage(imageId);
-      setImage(imageData);
+      setDownloading('dicom');
+      const blob = await api.downloadDicomFile(image.id);
+      const filename = `dicom_${image.orthanc_id}.dcm`;
+      await downloadFile(blob, filename);
+      setSuccess('DICOM file downloaded successfully');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError('Failed to download DICOM');
     } finally {
-      setLoading(false);
+      setDownloading(null);
     }
   };
 
-  const handleAnnotationChange = async (annotations: any[]) => {
+  const handleDownloadAnnotations = async (format: 'json' | 'csv') => {
     try {
-      console.log('Annotations changed:', annotations);
-      // Annotations are now automatically saved by the DicomViewer component
-      // This function can be used for additional processing if needed
-    } catch (error) {
-      console.error('Error handling annotation change:', error);
+      setDownloading(`annotations-${format}`);
+      const blob = await api.downloadImageAnnotations(image.id, format);
+      const filename = `annotations_image_${image.id}.${format}`;
+      await downloadFile(blob, filename);
+      setSuccess(`Annotations downloaded as ${format.toUpperCase()}`);
+    } catch (err) {
+      setError('Failed to download annotations');
+    } finally {
+      setDownloading(null);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white p-6 rounded-lg">
-          <div className="text-lg">Loading image...</div>
-        </div>
-      </div>
-    );
-  }
+  const handleExportDicomSeg = async () => {
+    try {
+      setDownloading('dicom-seg');
+      const blob = await api.exportDicomSeg(image.id);
+      const filename = `segmentation_${image.orthanc_id}.dcm`;
+      await downloadFile(blob, filename);
+      setSuccess('DICOM-SEG file exported successfully');
+    } catch (err) {
+      setError('Failed to export DICOM-SEG');
+    } finally {
+      setDownloading(null);
+    }
+  };
 
-  if (error || !image) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white p-6 rounded-lg">
-          <div className="text-red-500 text-lg">{error || 'Image not found'}</div>
-          <button
-            onClick={onClose}
-            className="mt-4 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handleDownloadWithAnnotations = async () => {
+    try {
+      setDownloading('image-with-annotations');
+      const blob = await api.downloadImageWithAnnotations(image.id);
+      const filename = `image_${image.id}_with_annotations.zip`;
+      await downloadFile(blob, filename);
+      setSuccess('Image with annotations downloaded successfully');
+    } catch (err) {
+      setError('Failed to download image with annotations');
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full h-full max-w-7xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-card rounded-lg shadow-xl w-full h-full max-w-7xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="bg-gray-100 px-6 py-4 border-b flex items-center justify-between">
+        <div className="flex items-center justify-between p-6 border-b border-border">
           <div>
-            <h2 className="text-xl font-semibold">DICOM Image Viewer</h2>
-            <div className="text-sm text-gray-600 mt-1">
+            <h2 className="text-xl font-semibold text-card-foreground">DICOM Image Details</h2>
+            <div className="text-sm text-muted-foreground mt-1">
               Image ID: {image.id} | Orthanc ID: {image.orthanc_id}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={handleDownloadDicom} 
+              variant="outline" 
+              size="sm"
+              disabled={downloading === 'dicom'}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {downloading === 'dicom' ? 'Downloading...' : 'Download DICOM'}
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Export
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Annotation Formats</DropdownMenuLabel>
+                <DropdownMenuItem 
+                  onClick={() => handleDownloadAnnotations('json')}
+                  disabled={downloading === 'annotations-json'}
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  {downloading === 'annotations-json' ? 'Downloading...' : 'JSON Format'}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => handleDownloadAnnotations('csv')}
+                  disabled={downloading === 'annotations-csv'}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  {downloading === 'annotations-csv' ? 'Downloading...' : 'CSV Format'}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Advanced Export</DropdownMenuLabel>
+                <DropdownMenuItem 
+                  onClick={handleExportDicomSeg}
+                  disabled={downloading === 'dicom-seg'}
+                >
+                  <Archive className="h-4 w-4 mr-2" />
+                  {downloading === 'dicom-seg' ? 'Exporting...' : 'DICOM-SEG File'}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={handleDownloadWithAnnotations}
+                  disabled={downloading === 'image-with-annotations'}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {downloading === 'image-with-annotations' ? 'Downloading...' : 'Image + Annotations'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={onClose}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 flex">
-          {/* DICOM Viewer */}
-          <div className="flex-1">
-            <DicomViewer
-              imageId={String(image.id)}
-              onAnnotationChange={handleAnnotationChange}
-              readOnly={false}
-              imageDbId={image.id}
-            />
+        <div className="flex-1 flex overflow-hidden">
+          {/* Main Content */}
+          <div className="flex-1 p-6 overflow-y-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Image Information */}
+              <Card className="bg-card">
+                <CardHeader>
+                  <CardTitle className="text-card-foreground">Image Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-card-foreground mb-1">
+                      Uploader
+                    </label>
+                    <div className="text-sm text-card-foreground">
+                      {image.uploader ? (
+                        <>
+                          {image.uploader.first_name} {image.uploader.last_name}
+                          <br />
+                          <span className="text-muted-foreground">{image.uploader.email}</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">Unknown uploader</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {image.assigned_user && (
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">
+                        Assigned To
+                      </label>
+                      <div className="text-sm text-card-foreground">
+                        {image.assigned_user.first_name} {image.assigned_user.last_name}
+                        <br />
+                        <span className="text-muted-foreground">{image.assigned_user.email}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {image.upload_time && (
+                    <div>
+                      <label className="block text-sm font-medium text-card-foreground mb-1">
+                        Upload Time
+                      </label>
+                      <div className="text-sm text-card-foreground">
+                        {new Date(image.upload_time).toLocaleString()}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Export Options */}
+              <Card className="bg-card">
+                <CardHeader>
+                  <CardTitle className="text-card-foreground">Export Options</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-card-foreground">DICOM File</span>
+                      <Badge variant="outline">Available</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-card-foreground">Annotations (JSON)</span>
+                      <Badge variant="outline">Available</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-card-foreground">Annotations (CSV)</span>
+                      <Badge variant="outline">Available</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-card-foreground">DICOM-SEG</span>
+                      <Badge variant="secondary">Coming Soon</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-card-foreground">Image + Annotations</span>
+                      <Badge variant="outline">Available</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* DICOM Metadata */}
+            {image.dicom_metadata && (
+              <Card className="bg-card mt-6">
+                <CardHeader>
+                  <CardTitle className="text-card-foreground">DICOM Metadata</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-muted border border-border rounded p-3 max-h-60 overflow-y-auto">
+                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
+                      {JSON.stringify(image.dicom_metadata, null, 2)}
+                    </pre>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
-          {/* Sidebar - Image Details */}
-          <div className="w-80 bg-gray-50 border-l overflow-y-auto">
+          {/* Sidebar */}
+          <div className="w-80 bg-muted border-l border-border overflow-y-auto">
             <div className="p-4">
-              <h3 className="text-lg font-semibold mb-4">Image Details</h3>
+              <h3 className="text-lg font-semibold mb-4 text-card-foreground">Quick Actions</h3>
               
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Uploader
-                  </label>
-                  <div className="text-sm text-gray-900">
-                    {image.uploader ? (
-                      <>
-                        {image.uploader.first_name} {image.uploader.last_name}
-                        <br />
-                        <span className="text-gray-500">{image.uploader.email}</span>
-                      </>
-                    ) : (
-                      <span className="text-gray-500">Unknown uploader</span>
-                    )}
-                  </div>
+              <div className="space-y-3">
+                <Button 
+                  onClick={handleDownloadDicom} 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  disabled={downloading === 'dicom'}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {downloading === 'dicom' ? 'Downloading...' : 'Download DICOM'}
+                </Button>
+
+                <Button 
+                  onClick={() => handleDownloadAnnotations('json')} 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  disabled={downloading === 'annotations-json'}
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  {downloading === 'annotations-json' ? 'Downloading...' : 'Export JSON'}
+                </Button>
+
+                <Button 
+                  onClick={() => handleDownloadAnnotations('csv')} 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  disabled={downloading === 'annotations-csv'}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  {downloading === 'annotations-csv' ? 'Downloading...' : 'Export CSV'}
+                </Button>
+
+                <Button 
+                  onClick={handleExportDicomSeg} 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  disabled={downloading === 'dicom-seg'}
+                >
+                  <Archive className="h-4 w-4 mr-2" />
+                  {downloading === 'dicom-seg' ? 'Exporting...' : 'Export DICOM-SEG'}
+                </Button>
+              </div>
+
+              {/* Status Messages */}
+              {success && (
+                <div className="mt-4 p-3 bg-green-500/10 border border-green-500/20 rounded text-sm text-green-600">
+                  {success}
                 </div>
+              )}
 
-                {image.assigned_user && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Assigned To
-                    </label>
-                    <div className="text-sm text-gray-900">
-                      {image.assigned_user.first_name} {image.assigned_user.last_name}
-                      <br />
-                      <span className="text-gray-500">{image.assigned_user.email}</span>
-                    </div>
-                  </div>
-                )}
-
-                {image.upload_time && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Upload Time
-                    </label>
-                    <div className="text-sm text-gray-900">
-                      {new Date(image.upload_time).toLocaleString()}
-                    </div>
-                  </div>
-                )}
-
-                {image.dicom_metadata && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      DICOM Metadata
-                    </label>
-                    <div className="bg-white border rounded p-3 max-h-60 overflow-y-auto">
-                      <pre className="text-xs text-gray-700 whitespace-pre-wrap">
-                        {JSON.stringify(image.dicom_metadata, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Actions */}
-              <div className="mt-6 space-y-2">
-                <button
-                  onClick={() => {
-                    const link = document.createElement('a');
-                    link.href = `${process.env.NEXT_PUBLIC_API_URL}/images/download/${image.id}`;
-                    link.download = `dicom_${image.id}.dcm`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                  }}
-                  className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
-                >
-                  Download DICOM
-                </button>
-                
-                <button
-                  onClick={() => {
-                    // TODO: Implement annotation export
-                    console.log('Export annotations');
-                  }}
-                  className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                >
-                  Export Annotations
-                </button>
-              </div>
+              {error && (
+                <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded text-sm text-red-600">
+                  {error}
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
     </div>
   );
-};
-
-export default DicomImageDetail; 
+} 

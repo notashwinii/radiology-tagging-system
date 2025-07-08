@@ -63,11 +63,11 @@ export default function AddUserPage() {
   }
 
   return (
-    <div className="min-h-screen bg-primary flex items-center justify-center p-4">
-      <Card className="w-full max-w-md bg-secondary">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <Card className="w-full max-w-md bg-card">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-primary">Add New User</CardTitle>
-          <CardDescription className="text-secondary">
+          <CardTitle className="text-2xl font-bold text-card-foreground">Add New User</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Create a new user account
           </CardDescription>
         </CardHeader>

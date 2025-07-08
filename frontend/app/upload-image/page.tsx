@@ -111,7 +111,7 @@ export default function UploadImagePage() {
   }
 
   return (
-    <div className="min-h-screen bg-primary p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
           <Button 
@@ -122,13 +122,13 @@ export default function UploadImagePage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
-          <h1 className="text-3xl font-bold text-primary">Upload DICOM Image</h1>
+          <h1 className="text-3xl font-bold text-foreground">Upload DICOM Image</h1>
         </div>
 
-        <Card className="bg-secondary">
+        <Card className="bg-card">
           <CardHeader>
-            <CardTitle className="text-primary">Upload New Image</CardTitle>
-            <CardDescription className="text-secondary">
+            <CardTitle className="text-card-foreground">Upload New Image</CardTitle>
+            <CardDescription className="text-muted-foreground">
               Upload a DICOM image to a project
             </CardDescription>
           </CardHeader>
@@ -157,7 +157,7 @@ export default function UploadImagePage() {
                   className={`input${fileError ? ' ring-2 ring-red-500' : ''}`}
                 />
                 {fileError && <div className="text-red-500 text-xs mt-1">{fileError}</div>}
-                <p className="text-sm text-secondary">
+                <p className="text-sm text-muted-foreground">
                   Only .dcm and .dicom files are supported
                 </p>
               </div>
