@@ -16,7 +16,8 @@ class Annotation(CommonModel):
     image_id = Column(Integer, ForeignKey("images.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     version = Column(Integer, default=1)
-    bounding_boxes = Column(JSON, nullable=False)  # List of dicts: {x, y, w, h}
+    data = Column(JSON, nullable=False)  # Store full annotation state as JSON
+    dicom_metadata = Column(JSON, nullable=True)  # Store DICOM metadata as JSON
     tags = Column(JSON, nullable=True)  # List of tag labels
     reviewer_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     review_status = Column(Enum(ReviewStatus), default=ReviewStatus.PENDING)

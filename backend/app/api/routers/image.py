@@ -19,8 +19,8 @@ import struct
 router = APIRouter(prefix="/images", tags=["images"])
 
 ORTHANC_URL = os.getenv("ORTHANC_URL", "http://localhost:8042")
-ORTHANC_USERNAME = os.getenv("ORTHANC_USERNAME", "orthancadmin")
-ORTHANC_PASSWORD = os.getenv("ORTHANC_PASSWORD", "change_this_password")
+ORTHANC_USERNAME = os.getenv("ORTHANC_USERNAME", "orthanc")
+ORTHANC_PASSWORD = os.getenv("ORTHANC_PASSWORD", "orthanc")
 
 def upload_to_orthanc(file):
     """Upload DICOM file to Orthanc server"""

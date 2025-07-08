@@ -28,6 +28,7 @@ declare module 'cornerstone-tools' {
   export function setToolActive(toolName: string, options: { mouseButtonMask: number }): void;
   export function clearToolState(element: HTMLElement, toolName: string): void;
   export function getToolState(element: HTMLElement, toolName: string): any;
+  export function addToolState(element: HTMLElement, toolName: string, annotation: any): void;
   
   export const WwwcTool: any;
   export const PanTool: any;

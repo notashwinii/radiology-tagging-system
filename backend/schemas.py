@@ -129,13 +129,15 @@ class ImageResponse(ImageBase):
 
 # Annotation schemas
 class AnnotationBase(BaseModel):
-    data: str  # JSON string
+    data: dict  # JSON object for annotation state
+    dicom_metadata: Optional[dict] = None
 
 class AnnotationCreate(AnnotationBase):
     image_id: int
 
 class AnnotationUpdate(BaseModel):
-    data: str
+    data: dict
+    dicom_metadata: Optional[dict] = None
 
 class AnnotationResponse(AnnotationBase):
     id: int

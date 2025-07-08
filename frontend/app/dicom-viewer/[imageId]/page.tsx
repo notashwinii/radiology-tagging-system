@@ -12,7 +12,13 @@ import {
   Archive,
   ChevronDown,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Square,
+  Ruler,
+  Circle,
+  ArrowUpRight,
+  Move3D,
+  Eraser
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -38,20 +44,13 @@ export default function DicomViewerPage() {
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [annotations, setAnnotations] = useState<any[]>([]); // Store current annotations
+  const [activeTool, setActiveTool] = useState('RectangleRoi');
 
-  useEffect(() => {
-    if (!imageId || isNaN(imageId)) {
-      setError('Invalid image ID');
-      setLoading(false);
-      return;
-    }
-
-    fetchImageDetails();
-  }, [imageId]);
-
-  const fetchImageDetails = async () => {
+  // Define fetchImageDetails before useEffect
+  const fetchImageDetails = async (imgId: number) => {
     try {
-      const imageData = await api.getImage(imageId);
+      const imageData = await api.getImage(imgId);
       setImage(imageData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -60,15 +59,33 @@ export default function DicomViewerPage() {
     }
   };
 
-  const handleAnnotationChange = async (annotations: any[]) => {
-    try {
-      console.log('Annotations changed:', annotations);
-      // Annotations are now automatically saved by the DicomViewer component
-      // This function can be used for additional processing if needed
-    } catch (error) {
-      console.error('Error handling annotation change:', error);
-    }
+  useEffect(() => {
+    if (!imageId || isNaN(imageId)) return;
+
+    // Always fetch image details so the DICOM can load
+    fetchImageDetails(imageId);
+
+    // Load and flatten annotation state from backend
+    api.getAnnotationsForImage(imageId).then((annotationRecords) => {
+      const allAnnotations = annotationRecords.flatMap((rec: any) =>
+        Array.isArray(rec.data?.annotations) ? rec.data.annotations : []
+      );
+      setAnnotations(allAnnotations);
+    });
+  }, [imageId]);
+
+  const handleAnnotationChange = (annotations: any[]) => {
+    setAnnotations(annotations);
   };
+
+  // Helper to convert annotations to CSV
+  function convertAnnotationsToCSV(annotations: any[]): string {
+    if (!annotations.length) return '';
+    const keys = Object.keys(annotations[0]);
+    const header = keys.join(',');
+    const rows = annotations.map(a => keys.map(k => JSON.stringify(a[k] ?? '')).join(','));
+    return [header, ...rows].join('\n');
+  }
 
   const handleBack = () => {
     router.back();
@@ -106,16 +123,24 @@ export default function DicomViewerPage() {
   const handleDownloadAnnotations = async (format: 'json' | 'csv') => {
     try {
       setDownloading(`annotations-${format}`);
-      const blob = await api.downloadImageAnnotations(imageId, format);
+      let blob;
+      if (format === 'json') {
+        blob = new Blob([
+          JSON.stringify({
+            annotations,
+            dicom_metadata: image?.dicom_metadata ?? null,
+          }, null, 2)
+        ], { type: 'application/json' });
+      } else {
+        // Convert annotations to CSV
+        const csv = convertAnnotationsToCSV(annotations);
+        blob = new Blob([csv], { type: 'text/csv' });
+      }
       const filename = `annotations_image_${imageId}.${format}`;
       await downloadFile(blob, filename);
       setSuccess(`Annotations downloaded as ${format.toUpperCase()}`);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Failed to download annotations');
-      }
+      setError('Failed to download annotations');
     } finally {
       setDownloading(null);
     }
@@ -216,6 +241,21 @@ export default function DicomViewerPage() {
               {downloading === 'dicom' ? 'Downloading...' : 'Download DICOM'}
             </Button>
 
+          {/* Manual Save Annotations Button */}
+          <Button
+            onClick={async () => {
+              if (image) {
+                await api.saveAnnotationState(image.id, annotations, image.dicom_metadata, []); // always send tags as []
+                setSuccess('Annotations saved!');
+              }
+            }}
+            variant="outline"
+            size="sm"
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Save Annotations
+          </Button>
+
             {/* Export Annotations Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -277,17 +317,71 @@ export default function DicomViewerPage() {
           </Alert>
         )}
 
-        {/* Main Content */}
-        <div className="flex-1 flex">
-          {/* DICOM Viewer */}
-          <div className="flex-1">
-            <DicomViewer
-              imageId={String(image.id)}
-              onAnnotationChange={handleAnnotationChange}
-              readOnly={false}
-              imageDbId={image.id}
-            />
+      {/* Main Content */}
+      <div className="flex-1 flex">
+        {/* DICOM Viewer */}
+        <div className="flex-1">
+          {/* Annotation Tool Toolbar */}
+          <div className="flex gap-2 mb-2">
+            <Button
+              variant={activeTool === 'RectangleRoi' ? 'default' : 'outline'}
+              size="icon"
+              onClick={() => setActiveTool('RectangleRoi')}
+              title="Rectangle ROI"
+            >
+              <Square className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={activeTool === 'Length' ? 'default' : 'outline'}
+              size="icon"
+              onClick={() => setActiveTool('Length')}
+              title="Length"
+            >
+              <Ruler className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={activeTool === 'EllipticalRoi' ? 'default' : 'outline'}
+              size="icon"
+              onClick={() => setActiveTool('EllipticalRoi')}
+              title="Elliptical ROI"
+            >
+              <Circle className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={activeTool === 'ArrowAnnotate' ? 'default' : 'outline'}
+              size="icon"
+              onClick={() => setActiveTool('ArrowAnnotate')}
+              title="Arrow Annotate"
+            >
+              <ArrowUpRight className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={activeTool === 'Bidirectional' ? 'default' : 'outline'}
+              size="icon"
+              onClick={() => setActiveTool('Bidirectional')}
+              title="Bidirectional"
+            >
+              <Move3D className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={activeTool === 'Eraser' ? 'default' : 'outline'}
+              size="icon"
+              onClick={() => setActiveTool('Eraser')}
+              title="Eraser (Clear All)"
+            >
+              <Eraser className="h-5 w-5" />
+            </Button>
           </div>
+          <DicomViewer
+            imageId={String(image.id)}
+            onAnnotationChange={handleAnnotationChange}
+            readOnly={false}
+            imageDbId={image.id}
+            activeTool={activeTool}
+            onErase={() => setActiveTool('RectangleRoi')}
+            initialAnnotations={annotations}
+          />
+        </div>
 
           {/* Sidebar - Image Details */}
           <div className="w-80 bg-card border-l border-border overflow-y-auto">

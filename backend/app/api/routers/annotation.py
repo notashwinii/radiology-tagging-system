@@ -63,7 +63,8 @@ def create_annotation(
     ann = Annotation(
         image_id=annotation.image_id,
         user_id=current_user.id,
-        bounding_boxes=[box.dict() for box in annotation.bounding_boxes],
+        data=annotation.data,
+        dicom_metadata=annotation.dicom_metadata,
         tags=annotation.tags,
         version=1,
         review_status=ReviewStatus.PENDING,
@@ -94,8 +95,10 @@ def update_annotation(
     if not ann:
         raise HTTPException(status_code=404, detail="Annotation not found")
     # TODO: Add versioning and audit log
-    if annotation.bounding_boxes is not None:
-        ann.bounding_boxes = [box.dict() for box in annotation.bounding_boxes]
+    if annotation.data is not None:
+        ann.data = annotation.data
+    if annotation.dicom_metadata is not None:
+        ann.dicom_metadata = annotation.dicom_metadata
     if annotation.tags is not None:
         ann.tags = annotation.tags
     if annotation.review_status is not None:
