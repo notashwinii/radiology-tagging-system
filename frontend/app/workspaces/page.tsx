@@ -92,21 +92,21 @@ export default function WorkspacesPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-primary flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="text-lg text-primary">Loading workspaces...</div>
+          <div className="text-lg text-foreground">Loading workspaces...</div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-primary p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-primary">Workspaces</h1>
-            <p className="text-secondary mt-2">Manage your workspaces and projects</p>
+            <h1 className="text-3xl font-bold text-foreground">Workspaces</h1>
+            <p className="text-muted-foreground mt-2">Manage your workspaces and projects</p>
           </div>
           <Dialog open={showCreateWorkspace} onOpenChange={setShowCreateWorkspace}>
             <DialogTrigger asChild>
@@ -115,7 +115,7 @@ export default function WorkspacesPage() {
                 Create Workspace
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-elevated">
+            <DialogContent className="bg-card">
               <DialogHeader>
                 <DialogTitle>Create New Workspace</DialogTitle>
                 <DialogDescription>
@@ -163,11 +163,11 @@ export default function WorkspacesPage() {
         )}
 
         {workspaces.length === 0 ? (
-          <Card className="bg-secondary">
+          <Card className="bg-card">
             <CardContent className="text-center py-12">
-              <FolderOpen className="h-12 w-12 text-secondary mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-primary mb-2">No Workspaces Yet</h3>
-              <p className="text-secondary mb-4">
+              <FolderOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-card-foreground mb-2">No Workspaces Yet</h3>
+              <p className="text-muted-foreground mb-4">
                 Create your first workspace to start organizing your projects and collaborating with team members.
               </p>
               <Button onClick={() => setShowCreateWorkspace(true)}>
@@ -179,13 +179,13 @@ export default function WorkspacesPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {workspaces.map((workspace) => (
-              <Card key={workspace.id} className="bg-secondary hover-bg cursor-pointer" onClick={() => router.push(`/workspaces/${workspace.id}`)}>
+              <Card key={workspace.id} className="bg-card hover:bg-accent cursor-pointer" onClick={() => router.push(`/workspaces/${workspace.id}`)}>
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>
-                      <CardTitle className="text-primary">{workspace.name}</CardTitle>
+                      <CardTitle className="text-card-foreground">{workspace.name}</CardTitle>
                       {workspace.description && (
-                        <CardDescription className="text-secondary mt-1">
+                        <CardDescription className="text-muted-foreground mt-1">
                           {workspace.description}
                         </CardDescription>
                       )}
@@ -217,7 +217,7 @@ export default function WorkspacesPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center justify-between text-sm text-secondary">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1">
                         <Users className="h-4 w-4" />
@@ -232,7 +232,7 @@ export default function WorkspacesPage() {
                       {workspace.owner_id === user?.id ? "Owner" : "Member"}
                     </Badge>
                   </div>
-                  <div className="text-xs text-secondary mt-2">
+                  <div className="text-xs text-muted-foreground mt-2">
                     Created {new Date(workspace.created_at).toLocaleDateString()}
                   </div>
                 </CardContent>

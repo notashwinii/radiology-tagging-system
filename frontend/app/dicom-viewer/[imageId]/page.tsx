@@ -158,9 +158,9 @@ export default function DicomViewerPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="text-lg">Loading DICOM image...</div>
+          <div className="text-lg text-foreground">Loading DICOM image...</div>
         </div>
       </div>
     );
@@ -168,9 +168,9 @@ export default function DicomViewerPage() {
 
   if (error || !image) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="text-red-500 text-lg mb-4">{error || 'Image not found'}</div>
+          <div className="text-destructive text-lg mb-4">{error || 'Image not found'}</div>
           <Button onClick={handleBack} variant="outline">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Go Back
@@ -181,17 +181,17 @@ export default function DicomViewerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4 flex items-center justify-between">
+      <div className="bg-card border-b border-border px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button onClick={handleBack} variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
           <div>
-            <h1 className="text-xl font-semibold">DICOM Image Viewer</h1>
-            <div className="text-sm text-gray-600">
+            <h1 className="text-xl font-semibold text-card-foreground">DICOM Image Viewer</h1>
+            <div className="text-sm text-muted-foreground">
               Image ID: {image.id} | Orthanc ID: {image.orthanc_id}
             </div>
           </div>
@@ -283,47 +283,47 @@ export default function DicomViewerPage() {
         </div>
 
         {/* Sidebar - Image Details */}
-        <div className="w-80 bg-white border-l overflow-y-auto">
+        <div className="w-80 bg-card border-l border-border overflow-y-auto">
           <div className="p-4">
-            <h3 className="text-lg font-semibold mb-4">Image Details</h3>
+            <h3 className="text-lg font-semibold mb-4 text-card-foreground">Image Details</h3>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-card-foreground mb-1">
                   Uploader
                 </label>
-                <div className="text-sm text-gray-900">
+                <div className="text-sm text-card-foreground">
                   {image.uploader ? (
                     <>
                       {image.uploader.first_name} {image.uploader.last_name}
                       <br />
-                      <span className="text-gray-500">{image.uploader.email}</span>
+                      <span className="text-muted-foreground">{image.uploader.email}</span>
                     </>
                   ) : (
-                    <span className="text-gray-500">Unknown uploader</span>
+                    <span className="text-muted-foreground">Unknown uploader</span>
                   )}
                 </div>
               </div>
 
               {image.assigned_user && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-card-foreground mb-1">
                     Assigned To
                   </label>
-                  <div className="text-sm text-gray-900">
+                  <div className="text-sm text-card-foreground">
                     {image.assigned_user.first_name} {image.assigned_user.last_name}
                     <br />
-                    <span className="text-gray-500">{image.assigned_user.email}</span>
+                    <span className="text-muted-foreground">{image.assigned_user.email}</span>
                   </div>
                 </div>
               )}
 
               {image.upload_time && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-card-foreground mb-1">
                     Upload Time
                   </label>
-                  <div className="text-sm text-gray-900">
+                  <div className="text-sm text-card-foreground">
                     {new Date(image.upload_time).toLocaleString()}
                   </div>
                 </div>
@@ -331,7 +331,7 @@ export default function DicomViewerPage() {
 
               {/* Export Information */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-card-foreground mb-2">
                   Export Options
                 </label>
                 <div className="space-y-2">
@@ -360,11 +360,11 @@ export default function DicomViewerPage() {
 
               {image.dicom_metadata && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-card-foreground mb-1">
                     DICOM Metadata
                   </label>
-                  <div className="bg-gray-50 border rounded p-3 max-h-60 overflow-y-auto">
-                    <pre className="text-xs text-gray-700 whitespace-pre-wrap">
+                  <div className="bg-muted border border-border rounded p-3 max-h-60 overflow-y-auto">
+                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
                       {JSON.stringify(image.dicom_metadata, null, 2)}
                     </pre>
                   </div>
