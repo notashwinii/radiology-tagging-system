@@ -18,14 +18,16 @@ class BoundingBox(BaseModel):
 
 class AnnotationBase(BaseModel):
     image_id: int
-    bounding_boxes: List[BoundingBox]
+    data: dict  # Store all annotation tool data
+    dicom_metadata: Optional[dict] = None
     tags: Optional[List[str]]
 
 class AnnotationCreate(AnnotationBase):
     pass
 
 class AnnotationUpdate(BaseModel):
-    bounding_boxes: Optional[List[BoundingBox]]
+    data: Optional[dict]
+    dicom_metadata: Optional[dict] = None
     tags: Optional[List[str]]
     review_status: Optional[ReviewStatus]
 
@@ -36,6 +38,8 @@ class AnnotationResponse(AnnotationBase):
     reviewer_id: Optional[int]
     review_status: ReviewStatus
     timestamp: Optional[datetime]
+    data: dict
+    dicom_metadata: Optional[dict]
     class Config:
         from_attributes = True
 

@@ -140,7 +140,7 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = localStorage.getItem('access-token')
-  
+
   const config: RequestInit = {
     headers: {
       'Content-Type': 'application/json',
@@ -190,9 +190,9 @@ export const api = {
   async refreshToken(refreshToken: string): Promise<LoginResponse> {
     const formData = new FormData()
     formData.append('refresh_token', refreshToken)
-    
+
     const token = localStorage.getItem('access-token')
-    
+
     const response = await fetch(`${API_BASE_URL}/refresh`, {
       method: 'POST',
       headers: {
@@ -266,9 +266,9 @@ export const api = {
     if (assignedUserId) {
       formData.append('assigned_user_id', assignedUserId.toString())
     }
-    
+
     const token = localStorage.getItem('access-token')
-    
+
     const response = await fetch(`${API_BASE_URL}/images/upload`, {
       method: 'POST',
       headers: {
@@ -297,9 +297,9 @@ export const api = {
     if (assignedUserId) {
       formData.append('assigned_user_id', assignedUserId.toString())
     }
-    
+
     const token = localStorage.getItem('access-token')
-    
+
     const response = await fetch(`${API_BASE_URL}/images/bulk-upload`, {
       method: 'POST',
       headers: {
@@ -332,9 +332,9 @@ export const api = {
   async assignImage(imageId: number, assignedUserId: number): Promise<Image> {
     const formData = new FormData()
     formData.append('assigned_user_id', assignedUserId.toString())
-    
+
     const token = localStorage.getItem('access-token')
-    
+
     const response = await fetch(`${API_BASE_URL}/images/${imageId}/assign`, {
       method: 'PATCH',
       headers: {
@@ -439,7 +439,8 @@ export const api = {
   // Annotation management
   async createAnnotation(annotationData: {
     image_id: number;
-    bounding_boxes: Array<{ x: number; y: number; w: number; h: number; label?: string }>;
+    data: any;
+    dicom_metadata?: any;
     tags?: string[];
   }): Promise<any> {
     return apiRequest<any>('/annotations/', {
@@ -449,7 +450,8 @@ export const api = {
   },
 
   async updateAnnotation(annotationId: number, annotationData: {
-    bounding_boxes?: Array<{ x: number; y: number; w: number; h: number; label?: string }>;
+    data?: any;
+    dicom_metadata?: any;
     tags?: string[];
     review_status?: string;
   }): Promise<any> {
@@ -463,10 +465,38 @@ export const api = {
     return apiRequest<any[]>(`/annotations/image/${imageId}`)
   },
 
+  // Helper for saving full annotation state
+  async saveAnnotationState(image_id: number, annotations: any[], dicom_metadata: any, tags?: string[]) {
+    // Always send a valid annotations array
+    const safeAnnotations = Array.isArray(annotations) ? annotations : [];
+    const payload: any = {
+      image_id,
+      data: { annotations: safeAnnotations },
+      dicom_metadata
+    };
+    if (Array.isArray(tags)) {
+      payload.tags = tags;
+    }
+    return this.createAnnotation(payload);
+  },
+
+  // Helper for loading full annotation state
+  async loadAnnotationState(image_id: number) {
+    const annotationList = await this.getAnnotationsForImage(image_id);
+    if (annotationList.length > 0) {
+      // Use the latest annotation (or pick by user/version as needed)
+      const annotation = annotationList[annotationList.length - 1];
+      const { annotations } = annotation.data || {};
+      const dicom_metadata = annotation.dicom_metadata || null;
+      return { annotations: annotations || [], dicom_metadata };
+    }
+    return { annotations: [], dicom_metadata: null };
+  },
+
   // Annotation download and export functions
   async downloadImageAnnotations(imageId: number, format: 'json' | 'csv' = 'json'): Promise<Blob> {
     const token = localStorage.getItem('access-token')
-    
+
     const response = await fetch(`${API_BASE_URL}/annotations/image/${imageId}/download?format=${format}`, {
       method: 'GET',
       headers: {
@@ -484,7 +514,7 @@ export const api = {
 
   async exportDicomSeg(imageId: number): Promise<Blob> {
     const token = localStorage.getItem('access-token')
-    
+
     const response = await fetch(`${API_BASE_URL}/annotations/image/${imageId}/export-dicom-seg`, {
       method: 'GET',
       headers: {
@@ -502,7 +532,7 @@ export const api = {
 
   async downloadImageWithAnnotations(imageId: number): Promise<Blob> {
     const token = localStorage.getItem('access-token')
-    
+
     const response = await fetch(`${API_BASE_URL}/annotations/image/${imageId}/download-with-dicom`, {
       method: 'GET',
       headers: {
@@ -520,7 +550,7 @@ export const api = {
 
   async bulkExportAnnotations(imageIds: number[]): Promise<Blob> {
     const token = localStorage.getItem('access-token')
-    
+
     const response = await fetch(`${API_BASE_URL}/annotations/bulk-export`, {
       method: 'POST',
       headers: {
@@ -540,7 +570,7 @@ export const api = {
 
   async downloadDicomFile(imageId: number): Promise<Blob> {
     const token = localStorage.getItem('access-token')
-    
+
     const response = await fetch(`${API_BASE_URL}/images/${imageId}/download`, {
       headers: {
         ...(token && { Authorization: `Bearer ${token}` }),
