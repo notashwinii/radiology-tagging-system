@@ -24,6 +24,7 @@ import {
 } from '../../../components/ui/dropdown-menu';
 import { Alert, AlertDescription } from '../../../components/ui/alert';
 import { Badge } from '../../../components/ui/badge';
+import Layout from '../../../components/layout';
 
 const DicomViewer = dynamic(() => import('../../../components/dicom-viewer'), { ssr: false });
 
@@ -158,222 +159,229 @@ export default function DicomViewerPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-lg text-foreground">Loading DICOM image...</div>
+      <Layout currentPage="home">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <div className="text-lg text-foreground">Loading DICOM image...</div>
+          </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
   if (error || !image) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-destructive text-lg mb-4">{error || 'Image not found'}</div>
-          <Button onClick={handleBack} variant="outline">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Go Back
-          </Button>
+      <Layout currentPage="home">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-destructive text-lg mb-4">{error || 'Image not found'}</div>
+            <Button onClick={handleBack} variant="outline">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Go Back
+            </Button>
+          </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="bg-card border-b border-border px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button onClick={handleBack} variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <div>
-            <h1 className="text-xl font-semibold text-card-foreground">DICOM Image Viewer</h1>
-            <div className="text-sm text-muted-foreground">
-              Image ID: {image.id} | Orthanc ID: {image.orthanc_id}
+    <Layout currentPage="home">
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <div className="bg-card border-b border-border px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button onClick={handleBack} variant="ghost" size="sm">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-xl font-semibold text-card-foreground">DICOM Image Viewer</h1>
+              <div className="text-sm text-muted-foreground">
+                Image ID: {image.id} | Orthanc ID: {image.orthanc_id}
+              </div>
             </div>
           </div>
-        </div>
-        
-        <div className="flex gap-2">
-          {/* Download DICOM Button */}
-          <Button 
-            onClick={handleDownloadDicom} 
-            variant="outline" 
-            size="sm"
-            disabled={downloading === 'dicom'}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            {downloading === 'dicom' ? 'Downloading...' : 'Download DICOM'}
-          </Button>
+          
+          <div className="flex gap-2">
+            {/* Download DICOM Button */}
+            <Button 
+              onClick={handleDownloadDicom} 
+              variant="outline" 
+              size="sm"
+              disabled={downloading === 'dicom'}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {downloading === 'dicom' ? 'Downloading...' : 'Download DICOM'}
+            </Button>
 
-          {/* Export Annotations Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <FileText className="h-4 w-4 mr-2" />
-                Export Annotations
-                <ChevronDown className="h-4 w-4 ml-2" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Annotation Formats</DropdownMenuLabel>
-              <DropdownMenuItem 
-                onClick={() => handleDownloadAnnotations('json')}
-                disabled={downloading === 'annotations-json'}
-              >
-                <Database className="h-4 w-4 mr-2" />
-                {downloading === 'annotations-json' ? 'Downloading...' : 'JSON Format'}
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => handleDownloadAnnotations('csv')}
-                disabled={downloading === 'annotations-csv'}
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                {downloading === 'annotations-csv' ? 'Downloading...' : 'CSV Format'}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>Advanced Export</DropdownMenuLabel>
-              <DropdownMenuItem 
-                onClick={handleExportDicomSeg}
-                disabled={downloading === 'dicom-seg'}
-              >
-                <Archive className="h-4 w-4 mr-2" />
-                {downloading === 'dicom-seg' ? 'Exporting...' : 'DICOM-SEG File'}
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={handleDownloadWithAnnotations}
-                disabled={downloading === 'image-with-annotations'}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                {downloading === 'image-with-annotations' ? 'Downloading...' : 'Image + Annotations'}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-
-      {/* Success/Error Messages */}
-      {success && (
-        <Alert className="mx-6 mt-4 border-green-200 bg-green-50">
-          <CheckCircle className="h-4 w-4 text-green-600" />
-          <AlertDescription className="text-green-800">{success}</AlertDescription>
-        </Alert>
-      )}
-
-      {error && (
-        <Alert className="mx-6 mt-4 border-red-200 bg-red-50">
-          <AlertCircle className="h-4 w-4 text-red-600" />
-          <AlertDescription className="text-red-800">{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Main Content */}
-      <div className="flex-1 flex">
-        {/* DICOM Viewer */}
-        <div className="flex-1">
-          <DicomViewer
-            imageId={String(image.id)}
-            onAnnotationChange={handleAnnotationChange}
-            readOnly={false}
-            imageDbId={image.id}
-          />
+            {/* Export Annotations Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Export Annotations
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Annotation Formats</DropdownMenuLabel>
+                <DropdownMenuItem 
+                  onClick={() => handleDownloadAnnotations('json')}
+                  disabled={downloading === 'annotations-json'}
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  {downloading === 'annotations-json' ? 'Downloading...' : 'JSON Format'}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => handleDownloadAnnotations('csv')}
+                  disabled={downloading === 'annotations-csv'}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  {downloading === 'annotations-csv' ? 'Downloading...' : 'CSV Format'}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Advanced Export</DropdownMenuLabel>
+                <DropdownMenuItem 
+                  onClick={handleExportDicomSeg}
+                  disabled={downloading === 'dicom-seg'}
+                >
+                  <Archive className="h-4 w-4 mr-2" />
+                  {downloading === 'dicom-seg' ? 'Exporting...' : 'DICOM-SEG File'}
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={handleDownloadWithAnnotations}
+                  disabled={downloading === 'image-with-annotations'}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {downloading === 'image-with-annotations' ? 'Downloading...' : 'Image + Annotations'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
-        {/* Sidebar - Image Details */}
-        <div className="w-80 bg-card border-l border-border overflow-y-auto">
-          <div className="p-4">
-            <h3 className="text-lg font-semibold mb-4 text-card-foreground">Image Details</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-card-foreground mb-1">
-                  Uploader
-                </label>
-                <div className="text-sm text-card-foreground">
-                  {image.uploader ? (
-                    <>
-                      {image.uploader.first_name} {image.uploader.last_name}
+        {/* Success/Error Messages */}
+        {success && (
+          <Alert className="mx-6 mt-4 border-green-200 bg-green-50">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">{success}</AlertDescription>
+          </Alert>
+        )}
+
+        {error && (
+          <Alert className="mx-6 mt-4 border-red-200 bg-red-50">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertDescription className="text-red-800">{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Main Content */}
+        <div className="flex-1 flex">
+          {/* DICOM Viewer */}
+          <div className="flex-1">
+            <DicomViewer
+              imageId={String(image.id)}
+              onAnnotationChange={handleAnnotationChange}
+              readOnly={false}
+              imageDbId={image.id}
+            />
+          </div>
+
+          {/* Sidebar - Image Details */}
+          <div className="w-80 bg-card border-l border-border overflow-y-auto">
+            <div className="p-4">
+              <h3 className="text-lg font-semibold mb-4 text-card-foreground">Image Details</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-card-foreground mb-1">
+                    Uploader
+                  </label>
+                  <div className="text-sm text-card-foreground">
+                    {image.uploader ? (
+                      <>
+                        {image.uploader.first_name} {image.uploader.last_name}
+                        <br />
+                        <span className="text-muted-foreground">{image.uploader.email}</span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">Unknown uploader</span>
+                    )}
+                  </div>
+                </div>
+
+                {image.assigned_user && (
+                  <div>
+                    <label className="block text-sm font-medium text-card-foreground mb-1">
+                      Assigned To
+                    </label>
+                    <div className="text-sm text-card-foreground">
+                      {image.assigned_user.first_name} {image.assigned_user.last_name}
                       <br />
-                      <span className="text-muted-foreground">{image.uploader.email}</span>
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground">Unknown uploader</span>
-                  )}
+                      <span className="text-muted-foreground">{image.assigned_user.email}</span>
+                    </div>
+                  </div>
+                )}
+
+                {image.upload_time && (
+                  <div>
+                    <label className="block text-sm font-medium text-card-foreground mb-1">
+                      Upload Time
+                    </label>
+                    <div className="text-sm text-card-foreground">
+                      {new Date(image.upload_time).toLocaleString()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Export Information */}
+                <div>
+                  <label className="block text-sm font-medium text-card-foreground mb-2">
+                    Export Options
+                  </label>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span>DICOM File</span>
+                      <Badge variant="outline">Available</Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Annotations (JSON)</span>
+                      <Badge variant="outline">Available</Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Annotations (CSV)</span>
+                      <Badge variant="outline">Available</Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>DICOM-SEG</span>
+                      <Badge variant="secondary">Coming Soon</Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Image + Annotations</span>
+                      <Badge variant="outline">Available</Badge>
+                    </div>
+                  </div>
                 </div>
+
+                {image.dicom_metadata && (
+                  <div>
+                    <label className="block text-sm font-medium text-card-foreground mb-1">
+                      DICOM Metadata
+                    </label>
+                    <div className="bg-muted border border-border rounded p-3 max-h-60 overflow-y-auto">
+                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
+                        {JSON.stringify(image.dicom_metadata, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                )}
               </div>
-
-              {image.assigned_user && (
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">
-                    Assigned To
-                  </label>
-                  <div className="text-sm text-card-foreground">
-                    {image.assigned_user.first_name} {image.assigned_user.last_name}
-                    <br />
-                    <span className="text-muted-foreground">{image.assigned_user.email}</span>
-                  </div>
-                </div>
-              )}
-
-              {image.upload_time && (
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">
-                    Upload Time
-                  </label>
-                  <div className="text-sm text-card-foreground">
-                    {new Date(image.upload_time).toLocaleString()}
-                  </div>
-                </div>
-              )}
-
-              {/* Export Information */}
-              <div>
-                <label className="block text-sm font-medium text-card-foreground mb-2">
-                  Export Options
-                </label>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>DICOM File</span>
-                    <Badge variant="outline">Available</Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Annotations (JSON)</span>
-                    <Badge variant="outline">Available</Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Annotations (CSV)</span>
-                    <Badge variant="outline">Available</Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>DICOM-SEG</span>
-                    <Badge variant="secondary">Coming Soon</Badge>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>Image + Annotations</span>
-                    <Badge variant="outline">Available</Badge>
-                  </div>
-                </div>
-              </div>
-
-              {image.dicom_metadata && (
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-1">
-                    DICOM Metadata
-                  </label>
-                  <div className="bg-muted border border-border rounded p-3 max-h-60 overflow-y-auto">
-                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
-                      {JSON.stringify(image.dicom_metadata, null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </Layout>
   );
 } 
