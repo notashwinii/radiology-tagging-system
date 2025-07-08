@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Text, Table
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Text, Table, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
@@ -132,7 +132,8 @@ class Annotation(Base):
     id = Column(Integer, primary_key=True, index=True)
     image_id = Column(Integer, ForeignKey("images.id"), nullable=False)
     annotator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    data = Column(Text, nullable=False)  # JSON string
+    data = Column(JSON, nullable=False)  # Store full annotation state as JSON
+    dicom_metadata = Column(JSON, nullable=True)  # Store DICOM metadata as JSON
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
