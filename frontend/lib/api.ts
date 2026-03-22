@@ -18,26 +18,6 @@ interface LoginResponse {
   token_type: string
 }
 
-export interface RegistrationResponse {
-  email: string
-  verification_required: boolean
-  verification_email_sent: boolean
-  message: string
-}
-
-export interface VerificationResendResponse {
-  email: string
-  verification_email_sent: boolean
-  message: string
-}
-
-export interface VerificationCompleteResponse {
-  email: string
-  verified: boolean
-  message: string
-  verified_at: string
-}
-
 export interface User {
   id: number
   email: string
@@ -149,32 +129,10 @@ interface FolderUpdate {
 }
 
 export class ApiError extends Error {
-  code?: string
-  email?: string
-  data?: unknown
-
-  constructor(public status: number, message: string, options?: { code?: string; email?: string; data?: unknown }) {
+  constructor(public status: number, message: string) {
     super(message)
     this.name = 'ApiError'
-    this.code = options?.code
-    this.email = options?.email
-    this.data = options?.data
   }
-}
-
-function buildApiError(status: number, errorData: any): ApiError {
-  const detail = errorData?.detail
-  if (typeof detail === 'string') {
-    return new ApiError(status, detail, { data: errorData })
-  }
-  if (detail && typeof detail === 'object') {
-    return new ApiError(status, detail.message || 'An error occurred', {
-      code: detail.code,
-      email: detail.email,
-      data: errorData,
-    })
-  }
-  return new ApiError(status, 'An error occurred', { data: errorData })
 }
 
 async function apiRequest<T>(
@@ -203,7 +161,7 @@ async function apiRequest<T>(
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
     console.error('API Error:', errorData)
-    throw buildApiError(response.status, errorData)
+    throw new ApiError(response.status, errorData.detail || 'An error occurred')
   }
 
   return response.json()
@@ -218,8 +176,8 @@ export const api = {
     })
   },
 
-  async register(userData: RegisterRequest): Promise<RegistrationResponse> {
-    return apiRequest<RegistrationResponse>('/users/', {
+  async register(userData: RegisterRequest): Promise<User> {
+    return apiRequest<User>('/users/', {
       method: 'POST',
       body: JSON.stringify(userData),
     })
@@ -245,22 +203,10 @@ export const api = {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
-      throw buildApiError(response.status, errorData)
+      throw new ApiError(response.status, errorData.detail || 'An error occurred')
     }
 
     return response.json()
-  },
-
-  async resendVerificationEmail(email: string): Promise<VerificationResendResponse> {
-    return apiRequest<VerificationResendResponse>('/auth/verify-email/resend', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    })
-  },
-
-  async verifyEmail(token: string): Promise<VerificationCompleteResponse> {
-    const params = new URLSearchParams({ token })
-    return apiRequest<VerificationCompleteResponse>(`/auth/verify-email?${params.toString()}`)
   },
 
   // Project management

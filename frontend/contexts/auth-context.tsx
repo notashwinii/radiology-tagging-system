@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
-import { api, ApiError, RegistrationResponse } from "@/lib/api"
+import { api, ApiError } from "@/lib/api"
 
 interface User {
   id: number
@@ -16,7 +16,7 @@ interface User {
 interface AuthContextType {
   user: User | null
   login: (email: string, password: string) => Promise<void>
-  register: (userData: { email: string; password: string; first_name?: string; last_name?: string }) => Promise<RegistrationResponse>
+  register: (userData: { email: string; password: string; first_name?: string; last_name?: string }) => Promise<void>
   logout: (router?: any) => void
   isLoading: boolean
 }
@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser)
     } catch (error) {
       if (error instanceof ApiError) {
-        throw error
+        throw new Error(error.message)
       }
       throw new Error('Login failed')
     }
@@ -90,10 +90,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = async (userData: { email: string; password: string; first_name?: string; last_name?: string }) => {
     try {
-      return await api.register(userData)
+      const newUser = await api.register(userData)
+      // After successful registration, automatically log in
+      await login(userData.email, userData.password)
     } catch (error) {
       if (error instanceof ApiError) {
-        throw error
+        throw new Error(error.message)
       }
       throw new Error('Registration failed')
     }

@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 
 # import
 from app.core.dependencies import get_db, oauth2_scheme 
-from app.schemas.auth import RegistrationResponse
 from app.schemas.user import User, UserCreate, UserUpdate
 from app.api.endpoints.user import functions as user_functions
 
@@ -18,7 +17,7 @@ user_module = APIRouter()
 #     return {"msg": "Auth page Initialization done"}
 
 # create new user 
-@user_module.post('/', response_model=RegistrationResponse)
+@user_module.post('/', response_model=User)
 async def create_new_user(user: UserCreate, db: Session = Depends(get_db)):
     db_user = user_functions.get_user_by_email(db, user.email)
     if db_user:
@@ -58,4 +57,5 @@ async def update_user( user_id: int, user: UserUpdate, db: Session = Depends(get
                )
 async def delete_user( user_id: int, db: Session = Depends(get_db)):
     return user_functions.delete_user(db, user_id)
+
 

@@ -1,10 +1,10 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 from app.utils.constant.globals import UserRole
 
 class UserBase(BaseModel):
-	email: EmailStr
+	email: str
 
 class UserCreate(UserBase):
 	password: str = Field(min_length=12, max_length=1024)
@@ -19,8 +19,6 @@ class User(UserBase):
 	first_name: Optional[str]
 	last_name: Optional[str]
 	is_active: bool
-	is_email_verified: bool
-	email_verified_at: datetime | None = None
 	role: UserRole or None
 	created_at: datetime
 	updated_at: datetime
@@ -31,7 +29,7 @@ class UserResponse(BaseModel):
 	id: int
 	first_name: Optional[str]
 	last_name: Optional[str]
-	email: EmailStr
+	email: str
 	
 	class Config:
 		from_attributes = True
@@ -46,4 +44,5 @@ class Token(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str
+
 
