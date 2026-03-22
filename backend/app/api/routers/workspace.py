@@ -6,6 +6,7 @@ from sqlalchemy import and_, func
 from app.core.dependencies import get_db
 from app.models.workspace import Workspace, workspace_members
 from app.models.user import User
+from app.models.project import Project
 from app.schemas.workspace import (
     WorkspaceCreate, 
     WorkspaceUpdate, 
@@ -60,6 +61,17 @@ def get_workspaces(
     # Add counts for each workspace
     result = []
     for workspace in workspaces:
+        members_count = (
+            db.query(workspace_members)
+            .filter(workspace_members.c.workspace_id == workspace.id)
+            .count()
+        )
+        projects_count = (
+            db.query(func.count(Project.id))
+            .filter(Project.workspace_id == workspace.id)
+            .scalar()
+        )
+
         workspace_dict = {
             "id": workspace.id,
             "name": workspace.name,
@@ -67,12 +79,8 @@ def get_workspaces(
             "owner_id": workspace.owner_id,
             "created_at": workspace.created_at,
             "updated_at": workspace.updated_at,
-            "members_count": db.query(workspace_members).filter(
-                workspace_members.c.workspace_id == workspace.id
-            ).count(),
-            "projects_count": db.query(func.count(workspace.id)).filter(
-                workspace.id == workspace.id
-            ).scalar()
+            "members_count": members_count,
+            "projects_count": projects_count,
         }
         result.append(workspace_dict)
     
