@@ -56,6 +56,8 @@ export interface Workspace {
   owner_id: number
   created_at: string
   updated_at?: string
+  members_count?: number
+  projects_count?: number
 }
 
 export interface WorkspaceCreate {
@@ -258,14 +260,6 @@ export const api = {
     })
   },
 
-  async getProjects(workspaceId?: number): Promise<Project[]> {
-    let url = "/projects/"
-    if (workspaceId) {
-      url += `?workspace_id=${workspaceId}`
-    }
-    return apiRequest<Project[]>(url)
-  },
-
   async getProject(projectId: number): Promise<Project> {
     return apiRequest<Project>(`/projects/${projectId}`)
   },
@@ -279,6 +273,42 @@ export const api = {
 
   async deleteProject(projectId: number): Promise<{ message: string }> {
     return apiRequest<{ message: string }>(`/projects/${projectId}`, {
+      method: "DELETE",
+    })
+  },
+
+  async getProjects(workspaceId?: number): Promise<Project[]> {
+    let url = "/projects/"
+    if (workspaceId) {
+      url += `?workspace_id=${workspaceId}`
+    }
+    return apiRequest<Project[]>(url)
+  },
+
+  async getWorkspaces(): Promise<Workspace[]> {
+    return apiRequest<Workspace[]>("/workspaces/")
+  },
+
+  async getWorkspace(workspaceId: number): Promise<Workspace> {
+    return apiRequest<Workspace>(`/workspaces/${workspaceId}`)
+  },
+
+  async createWorkspace(workspaceData: WorkspaceCreate): Promise<Workspace> {
+    return apiRequest<Workspace>("/workspaces/", {
+      method: "POST",
+      body: JSON.stringify(workspaceData),
+    })
+  },
+
+  async updateWorkspace(workspaceId: number, workspaceData: WorkspaceUpdate): Promise<Workspace> {
+    return apiRequest<Workspace>(`/workspaces/${workspaceId}`, {
+      method: "PUT",
+      body: JSON.stringify(workspaceData),
+    })
+  },
+
+  async deleteWorkspace(workspaceId: number): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>(`/workspaces/${workspaceId}`, {
       method: "DELETE",
     })
   },

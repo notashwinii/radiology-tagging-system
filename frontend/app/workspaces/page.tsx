@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { useRouter } from 'next/navigation'
 import { api, ApiError } from '@/lib/api'
@@ -33,12 +33,15 @@ export default function WorkspacesPage() {
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState('')
   const { user } = useAuth()
   const router = useRouter()
+  const fetchedWorkspaces = useRef(false)
 
   useEffect(() => {
     loadWorkspaces()
   }, [])
 
   const loadWorkspaces = async () => {
+    if (fetchedWorkspaces.current) return
+    fetchedWorkspaces.current = true
     try {
       setIsLoading(true)
       const workspacesData = await api.getWorkspaces()

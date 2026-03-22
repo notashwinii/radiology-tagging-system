@@ -1,39 +1,24 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import Layout from '@/components/layout'
 import LoadingScreen from '@/components/loading-screen'
-import { API_BASE_URL } from '@/lib/config'
+import { api, ApiError, Workspace as ApiWorkspace } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Plus, FolderOpen, Users, Calendar } from 'lucide-react'
 import CreateWorkspaceModal from '@/components/create-workspace-modal'
 
-interface Workspace {
-  id: string
-  name: string
-  description: string
-  created_at: string
-  updated_at: string
-  owner_id: string
-  members?: Array<{
-    id: string
-    first_name: string
-    last_name: string
-    email: string
-    role: string
-  }>
-}
-
 export default function HomePage() {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [workspaces, setWorkspaces] = useState<ApiWorkspace[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [isPageLoading, setIsPageLoading] = useState(true)
   const { user, isLoading: authLoading } = useAuth()
   const router = useRouter()
+  const fetchedWorkspaces = useRef(false)
 
   useEffect(() => {
     // Wait for auth to be determined before proceeding
@@ -54,26 +39,16 @@ export default function HomePage() {
   }, [user, authLoading, router])
 
   const fetchWorkspaces = async () => {
+    if (fetchedWorkspaces.current) return
+    fetchedWorkspaces.current = true
     try {
-      const token = localStorage.getItem('access-token')
-      if (!token) {
+      const data = await api.getWorkspaces()
+      setWorkspaces(data)
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
         router.push('/login')
         return
       }
-
-      const response = await fetch(`${API_BASE_URL}/workspaces`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setWorkspaces(data)
-      } else if (response.status === 401) {
-        router.push('/login')
-      }
-    } catch (error) {
       console.error('Error fetching workspaces:', error)
     } finally {
       setIsLoading(false)
@@ -87,21 +62,9 @@ export default function HomePage() {
 
   const handleCreateWorkspace = async (workspaceData: { name: string; description: string }) => {
     try {
-      const token = localStorage.getItem('access-token')
-      const response = await fetch(`${API_BASE_URL}/workspaces`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(workspaceData)
-      })
-
-      if (response.ok) {
-        const newWorkspace = await response.json()
-        setWorkspaces(prev => [...prev, newWorkspace])
-        setShowCreateModal(false)
-      }
+      const newWorkspace = await api.createWorkspace(workspaceData)
+      setWorkspaces(prev => [...prev, newWorkspace])
+      setShowCreateModal(false)
     } catch (error) {
       console.error('Error creating workspace:', error)
     }

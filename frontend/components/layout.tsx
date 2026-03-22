@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ export default function Layout({ children, currentPage = 'home' }: LayoutProps) 
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [loadingWorkspaces, setLoadingWorkspaces] = useState(true)
   const [workspaceError, setWorkspaceError] = useState('')
+  const fetchedWorkspaces = useRef(false)
 
   const handleLogout = () => {
     logout(router)
@@ -36,6 +37,8 @@ export default function Layout({ children, currentPage = 'home' }: LayoutProps) 
 
   useEffect(() => {
     const fetchWorkspaces = async () => {
+      if (fetchedWorkspaces.current) return
+      fetchedWorkspaces.current = true
       try {
         setLoadingWorkspaces(true)
         const data = await api.getWorkspaces()
