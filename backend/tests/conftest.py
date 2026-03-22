@@ -28,6 +28,7 @@ os.environ.setdefault("SMTP_USE_TLS", "false")
 os.environ.setdefault("EMAIL_FROM", "noreply@example.com")
 os.environ.setdefault("VERIFICATION_TOKEN_EXPIRE_HOURS", "24")
 os.environ.setdefault("VERIFICATION_RESEND_COOLDOWN_SECONDS", "1")
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
 
 from app.main import app  # noqa: E402
 from app.core.database import Base  # noqa: E402

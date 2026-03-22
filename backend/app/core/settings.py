@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT_ENV_FILE, env_file_encoding="utf-8", extra="ignore")
 
     # Database
+    database_url_override: str | None = Field(None, alias="DATABASE_URL")
     db_host: str = Field(..., alias="DB_HOST")
     db_port: int = Field(..., alias="DB_PORT")
     db_name: str = Field(..., alias="DB_NAME")
@@ -48,6 +49,8 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
+        if self.database_url_override:
+            return self.database_url_override
         return PostgresDsn.build(
             scheme="postgresql",
             username=self.db_user,
