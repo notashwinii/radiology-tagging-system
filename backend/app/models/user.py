@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Enum
+from sqlalchemy import Column, String, Enum, Boolean, DateTime
 from enum import Enum as PythonEnum
 from sqlalchemy.orm import relationship
 
@@ -14,6 +14,8 @@ class User(CommonModel):
 	first_name = Column(String, nullable=True)
 	last_name = Column(String, nullable=True)
 	role = Column(Enum(UserRole), default=UserRole.USER, nullable=False)
+	is_email_verified = Column(Boolean, default=False, nullable=False)
+	email_verified_at = Column(DateTime(timezone=True), nullable=True)
 
 	# Relationships
 	owned_projects = relationship("Project", foreign_keys="Project.owner_id", back_populates="owner")
@@ -25,6 +27,7 @@ class User(CommonModel):
 	annotation_history = relationship("AnnotationHistory", foreign_keys="AnnotationHistory.changed_by", back_populates="user")
 	owned_workspaces = relationship("Workspace", foreign_keys="Workspace.owner_id", back_populates="owner")
 	workspaces = relationship("Workspace", secondary="workspace_members", back_populates="members")
+	verification_tokens = relationship("VerificationToken", back_populates="user")
 
 	def __repr__(self):
 		return f"{self.email}"

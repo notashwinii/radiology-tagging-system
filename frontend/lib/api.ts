@@ -18,18 +18,37 @@ interface LoginResponse {
   token_type: string
 }
 
+export interface RegistrationResponse {
+  email: string
+  verification_required: boolean
+  verification_email_sent: boolean
+  message: string
+}
+
+export interface VerificationResendResponse {
+  email: string
+  verification_email_sent: boolean
+  message: string
+}
+
+export interface VerificationCompleteResponse {
+  email: string
+  verified: boolean
+  message: string
+  verified_at: string
+}
+
 export interface User {
   id: number
   email: string
   first_name?: string
   last_name?: string
   is_active: boolean
-  role: "user" | "admin" | "reviewer"
+  is_email_verified?: boolean
   created_at: string
   updated_at: string
 }
 
-// Workspace types
 export interface Workspace {
   id: number
   name: string
@@ -129,72 +148,83 @@ interface FolderUpdate {
 }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  code?: string
+  email?: string
+  data?: unknown
+
+  constructor(public status: number, message: string, options?: { code?: string; email?: string; data?: unknown }) {
     super(message)
-    this.name = 'ApiError'
+    this.name = "ApiError"
+    this.code = options?.code
+    this.email = options?.email
+    this.data = options?.data
   }
 }
 
-async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const token = localStorage.getItem('access-token')
+function buildApiError(status: number, errorData: any): ApiError {
+  const detail = errorData?.detail
+  if (typeof detail === "string") {
+    return new ApiError(status, detail, { data: errorData })
+  }
+  if (detail && typeof detail === "object") {
+    return new ApiError(status, detail.message || "An error occurred", {
+      code: detail.code,
+      email: detail.email,
+      data: errorData,
+    })
+  }
+  return new ApiError(status, "An error occurred", { data: errorData })
+}
+
+async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("access-token") : null
 
   const config: RequestInit = {
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(token && { Authorization: `Bearer ${token}` }),
       ...options.headers,
     },
     ...options,
   }
 
-  console.log(`Making API request to: ${API_BASE_URL}${endpoint}`)
-  console.log('Request config:', config)
-
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config)
 
-  console.log('Response status:', response.status)
-  console.log('Response headers:', response.headers)
-
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
-    console.error('API Error:', errorData)
-    throw new ApiError(response.status, errorData.detail || 'An error occurred')
+    const errorData = await response.json().catch(() => ({ detail: "An error occurred" }))
+    throw buildApiError(response.status, errorData)
   }
 
   return response.json()
 }
 
 export const api = {
-  // Authentication
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    return apiRequest<LoginResponse>('/login', {
-      method: 'POST',
+    return apiRequest<LoginResponse>("/login", {
+      method: "POST",
       body: JSON.stringify(credentials),
     })
   },
 
-  async register(userData: RegisterRequest): Promise<User> {
-    return apiRequest<User>('/users/', {
-      method: 'POST',
+  async register(userData: RegisterRequest): Promise<RegistrationResponse> {
+    return apiRequest<RegistrationResponse>("/users/", {
+      method: "POST",
       body: JSON.stringify(userData),
     })
   },
 
   async getCurrentUser(): Promise<User> {
-    return apiRequest<User>('/users/me/')
+    return apiRequest<User>("/users/me/")
   },
 
   async refreshToken(refreshToken: string): Promise<LoginResponse> {
     const formData = new FormData()
-    formData.append('refresh_token', refreshToken)
+    formData.append("refresh_token", refreshToken)
 
-    const token = localStorage.getItem('access-token')
+    const token = typeof window !== "undefined" ? localStorage.getItem("access-token") : null
 
     const response = await fetch(`${API_BASE_URL}/refresh`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         ...(token && { Authorization: `Bearer ${token}` }),
       },
@@ -202,23 +232,34 @@ export const api = {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
-      throw new ApiError(response.status, errorData.detail || 'An error occurred')
+      const errorData = await response.json().catch(() => ({ detail: "An error occurred" }))
+      throw buildApiError(response.status, errorData)
     }
 
     return response.json()
   },
 
-  // Project management
+  async resendVerificationEmail(email: string): Promise<VerificationResendResponse> {
+    return apiRequest<VerificationResendResponse>("/auth/verify-email/resend", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    })
+  },
+
+  async verifyEmail(token: string): Promise<VerificationCompleteResponse> {
+    const params = new URLSearchParams({ token })
+    return apiRequest<VerificationCompleteResponse>(`/auth/verify-email?${params.toString()}`)
+  },
+
   async createProject(projectData: ProjectCreate): Promise<Project> {
-    return apiRequest<Project>('/projects/', {
-      method: 'POST',
+    return apiRequest<Project>("/projects/", {
+      method: "POST",
       body: JSON.stringify(projectData),
     })
   },
 
   async getProjects(workspaceId?: number): Promise<Project[]> {
-    let url = '/projects/'
+    let url = "/projects/"
     if (workspaceId) {
       url += `?workspace_id=${workspaceId}`
     }
@@ -231,46 +272,45 @@ export const api = {
 
   async updateProject(projectId: number, projectData: Partial<ProjectCreate>): Promise<Project> {
     return apiRequest<Project>(`/projects/${projectId}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(projectData),
     })
   },
 
   async deleteProject(projectId: number): Promise<{ message: string }> {
     return apiRequest<{ message: string }>(`/projects/${projectId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     })
   },
 
   async inviteUserToProject(projectId: number, invite: ProjectInvite): Promise<ProjectMember> {
     return apiRequest<ProjectMember>(`/projects/${projectId}/invite`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(invite),
     })
   },
 
   async removeUserFromProject(projectId: number, userId: number): Promise<{ message: string }> {
     return apiRequest<{ message: string }>(`/projects/${projectId}/members/${userId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     })
   },
 
-  // Image management
   async uploadImage(file: File, projectId: number, folderId?: number, assignedUserId?: number): Promise<Image> {
     const formData = new FormData()
-    formData.append('file', file)
-    formData.append('project_id', projectId.toString())
+    formData.append("file", file)
+    formData.append("project_id", projectId.toString())
     if (folderId) {
-      formData.append('folder_id', folderId.toString())
+      formData.append("folder_id", folderId.toString())
     }
     if (assignedUserId) {
-      formData.append('assigned_user_id', assignedUserId.toString())
+      formData.append("assigned_user_id", assignedUserId.toString())
     }
 
-    const token = localStorage.getItem('access-token')
+    const token = typeof window !== "undefined" ? localStorage.getItem("access-token") : null
 
     const response = await fetch(`${API_BASE_URL}/images/upload`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         ...(token && { Authorization: `Bearer ${token}` }),
       },
@@ -278,8 +318,8 @@ export const api = {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
-      throw new ApiError(response.status, errorData.detail || 'An error occurred')
+      const errorData = await response.json().catch(() => ({ detail: "An error occurred" }))
+      throw buildApiError(response.status, errorData)
     }
 
     return response.json()
@@ -287,21 +327,21 @@ export const api = {
 
   async bulkUploadImages(files: File[], projectId: number, folderId?: number, assignedUserId?: number): Promise<Image[]> {
     const formData = new FormData()
-    files.forEach(file => {
-      formData.append('files', file)
+    files.forEach((file) => {
+      formData.append("files", file)
     })
-    formData.append('project_id', projectId.toString())
+    formData.append("project_id", projectId.toString())
     if (folderId) {
-      formData.append('folder_id', folderId.toString())
+      formData.append("folder_id", folderId.toString())
     }
     if (assignedUserId) {
-      formData.append('assigned_user_id', assignedUserId.toString())
+      formData.append("assigned_user_id", assignedUserId.toString())
     }
 
-    const token = localStorage.getItem('access-token')
+    const token = typeof window !== "undefined" ? localStorage.getItem("access-token") : null
 
     const response = await fetch(`${API_BASE_URL}/images/bulk-upload`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         ...(token && { Authorization: `Bearer ${token}` }),
       },
@@ -309,19 +349,19 @@ export const api = {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
-      throw new ApiError(response.status, errorData.detail || 'An error occurred')
+      const errorData = await response.json().catch(() => ({ detail: "An error occurred" }))
+      throw buildApiError(response.status, errorData)
     }
 
     return response.json()
   },
 
   async getImages(projectId?: number, folderId?: number): Promise<Image[]> {
-    let url = '/images/'
+    let url = "/images/"
     const params = new URLSearchParams()
-    if (projectId) params.append('project_id', projectId.toString())
-    if (folderId) params.append('folder_id', folderId.toString())
-    if (params.toString()) url += '?' + params.toString()
+    if (projectId) params.append("project_id", projectId.toString())
+    if (folderId) params.append("folder_id", folderId.toString())
+    if (params.toString()) url += "?" + params.toString()
     return apiRequest<Image[]>(url)
   },
 
@@ -331,12 +371,12 @@ export const api = {
 
   async assignImage(imageId: number, assignedUserId: number): Promise<Image> {
     const formData = new FormData()
-    formData.append('assigned_user_id', assignedUserId.toString())
+    formData.append("assigned_user_id", assignedUserId.toString())
 
-    const token = localStorage.getItem('access-token')
+    const token = typeof window !== "undefined" ? localStorage.getItem("access-token") : null
 
     const response = await fetch(`${API_BASE_URL}/images/${imageId}/assign`, {
-      method: 'PATCH',
+      method: "PATCH",
       headers: {
         ...(token && { Authorization: `Bearer ${token}` }),
       },
@@ -344,8 +384,8 @@ export const api = {
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
-      throw new ApiError(response.status, errorData.detail || 'An error occurred')
+      const errorData = await response.json().catch(() => ({ detail: "An error occurred" }))
+      throw buildApiError(response.status, errorData)
     }
 
     return response.json()
@@ -353,25 +393,24 @@ export const api = {
 
   async updateImage(imageId: number, imageData: { assigned_user_id?: number; folder_id?: number }): Promise<Image> {
     return apiRequest<Image>(`/images/${imageId}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(imageData),
     })
   },
 
   async moveImage(imageId: number, folderId?: number): Promise<Image> {
     return apiRequest<Image>(`/images/${imageId}/move`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify({ folder_id: folderId }),
     })
   },
 
   async deleteImage(imageId: number): Promise<{ message: string }> {
     return apiRequest<{ message: string }>(`/images/${imageId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     })
   },
 
-  // User management
   async getAllUsers(skip = 0, limit = 100): Promise<User[]> {
     return apiRequest<User[]>(`/users/?skip=${skip}&limit=${limit}`)
   },
@@ -382,21 +421,20 @@ export const api = {
 
   async updateUser(userId: number, userData: Partial<User>): Promise<User> {
     return apiRequest<User>(`/users/${userId}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(userData),
     })
   },
 
   async deleteUser(userId: number): Promise<{ msg: string }> {
     return apiRequest<{ msg: string }>(`/users/${userId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     })
   },
 
-  // Folder management
   async createFolder(folderData: FolderCreate): Promise<Folder> {
-    return apiRequest<Folder>('/folders/', {
-      method: 'POST',
+    return apiRequest<Folder>("/folders/", {
+      method: "POST",
       body: JSON.stringify(folderData),
     })
   },
@@ -411,52 +449,51 @@ export const api = {
 
   async updateFolder(folderId: number, folderData: FolderUpdate): Promise<Folder> {
     return apiRequest<Folder>(`/folders/${folderId}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(folderData),
     })
   },
 
   async deleteFolder(folderId: number): Promise<{ message: string }> {
     return apiRequest<{ message: string }>(`/folders/${folderId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     })
   },
 
   async assignFolderImages(folderId: number, assignedUserId: number): Promise<{ message: string; updated_count: number }> {
     return apiRequest<{ message: string; updated_count: number }>(`/folders/${folderId}/assign-images`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify({ assigned_user_id: assignedUserId }),
     })
   },
 
   async assignUnknownImages(projectId: number, assignedUserId: number): Promise<{ message: string; updated_count: number }> {
     return apiRequest<{ message: string; updated_count: number }>(`/projects/${projectId}/assign-root-images`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify({ assigned_user_id: assignedUserId }),
     })
   },
 
-  // Annotation management
   async createAnnotation(annotationData: {
-    image_id: number;
-    data: any;
-    dicom_metadata?: any;
-    tags?: string[];
+    image_id: number
+    data: any
+    dicom_metadata?: any
+    tags?: string[]
   }): Promise<any> {
-    return apiRequest<any>('/annotations/', {
-      method: 'POST',
+    return apiRequest<any>("/annotations/", {
+      method: "POST",
       body: JSON.stringify(annotationData),
     })
   },
 
   async updateAnnotation(annotationId: number, annotationData: {
-    data?: any;
-    dicom_metadata?: any;
-    tags?: string[];
-    review_status?: string;
+    data?: any
+    dicom_metadata?: any
+    tags?: string[]
+    review_status?: string
   }): Promise<any> {
     return apiRequest<any>(`/annotations/${annotationId}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(annotationData),
     })
   },
@@ -465,169 +502,63 @@ export const api = {
     return apiRequest<any[]>(`/annotations/image/${imageId}`)
   },
 
-  // Helper for saving full annotation state
   async saveAnnotationState(image_id: number, annotations: any[], dicom_metadata: any, tags?: string[]) {
-    // Always send a valid annotations array
-    const safeAnnotations = Array.isArray(annotations) ? annotations : [];
+    const safeAnnotations = Array.isArray(annotations) ? annotations : []
     const payload: any = {
       image_id,
       data: { annotations: safeAnnotations },
-      dicom_metadata
-    };
+      dicom_metadata,
+    }
     if (Array.isArray(tags)) {
-      payload.tags = tags;
+      payload.tags = tags
     }
-    return this.createAnnotation(payload);
+    return this.createAnnotation(payload)
   },
 
-  // Helper for loading full annotation state
   async loadAnnotationState(image_id: number) {
-    const annotationList = await this.getAnnotationsForImage(image_id);
+    const annotationList = await this.getAnnotationsForImage(image_id)
     if (annotationList.length > 0) {
-      // Use the latest annotation (or pick by user/version as needed)
-      const annotation = annotationList[annotationList.length - 1];
-      const { annotations } = annotation.data || {};
-      const dicom_metadata = annotation.dicom_metadata || null;
-      return { annotations: annotations || [], dicom_metadata };
+      const annotation = annotationList[annotationList.length - 1]
+      const { annotations } = annotation.data || {}
+      const dicom_metadata = annotation.dicom_metadata || null
+      return { annotations: annotations || [], dicom_metadata }
     }
-    return { annotations: [], dicom_metadata: null };
+    return { annotations: [], dicom_metadata: null }
   },
 
-  // Annotation download and export functions
-  async downloadImageAnnotations(imageId: number, format: 'json' | 'csv' = 'json'): Promise<Blob> {
-    const token = localStorage.getItem('access-token')
+  async downloadImageAnnotations(imageId: number, format: "json" | "csv" = "json"): Promise<Blob> {
+    const token = typeof window !== "undefined" ? localStorage.getItem("access-token") : null
 
     const response = await fetch(`${API_BASE_URL}/annotations/image/${imageId}/download?format=${format}`, {
-      method: 'GET',
+      method: "GET",
       headers: {
         ...(token && { Authorization: `Bearer ${token}` }),
       },
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
-      throw new ApiError(response.status, errorData.detail || 'An error occurred')
+      const errorData = await response.json().catch(() => ({ detail: "An error occurred" }))
+      throw buildApiError(response.status, errorData)
     }
 
     return response.blob()
   },
 
   async exportDicomSeg(imageId: number): Promise<Blob> {
-    const token = localStorage.getItem('access-token')
+    const token = typeof window !== "undefined" ? localStorage.getItem("access-token") : null
 
     const response = await fetch(`${API_BASE_URL}/annotations/image/${imageId}/export-dicom-seg`, {
-      method: 'GET',
+      method: "GET",
       headers: {
         ...(token && { Authorization: `Bearer ${token}` }),
       },
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
-      throw new ApiError(response.status, errorData.detail || 'An error occurred')
+      const errorData = await response.json().catch(() => ({ detail: "An error occurred" }))
+      throw buildApiError(response.status, errorData)
     }
 
     return response.blob()
   },
-
-  async downloadImageWithAnnotations(imageId: number): Promise<Blob> {
-    const token = localStorage.getItem('access-token')
-
-    const response = await fetch(`${API_BASE_URL}/annotations/image/${imageId}/download-with-dicom`, {
-      method: 'GET',
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
-      throw new ApiError(response.status, errorData.detail || 'An error occurred')
-    }
-
-    return response.blob()
-  },
-
-  async bulkExportAnnotations(imageIds: number[]): Promise<Blob> {
-    const token = localStorage.getItem('access-token')
-
-    const response = await fetch(`${API_BASE_URL}/annotations/bulk-export`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-      body: JSON.stringify({ image_ids: imageIds }),
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
-      throw new ApiError(response.status, errorData.detail || 'An error occurred')
-    }
-
-    return response.blob()
-  },
-
-  async downloadDicomFile(imageId: number): Promise<Blob> {
-    const token = localStorage.getItem('access-token')
-
-    const response = await fetch(`${API_BASE_URL}/images/${imageId}/download`, {
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'An error occurred' }))
-      throw new ApiError(response.status, errorData.detail || 'An error occurred')
-    }
-
-    return response.blob()
-  },
-
-  // Workspace management
-  async getWorkspaces(): Promise<Workspace[]> {
-    return apiRequest<Workspace[]>('/workspaces/')
-  },
-
-  async getWorkspace(workspaceId: number): Promise<Workspace> {
-    return apiRequest<Workspace>(`/workspaces/${workspaceId}`)
-  },
-
-  async createWorkspace(workspaceData: WorkspaceCreate): Promise<Workspace> {
-    return apiRequest<Workspace>('/workspaces/', {
-      method: 'POST',
-      body: JSON.stringify(workspaceData),
-    })
-  },
-
-  async updateWorkspace(workspaceId: number, workspaceData: WorkspaceUpdate): Promise<Workspace> {
-    return apiRequest<Workspace>(`/workspaces/${workspaceId}`, {
-      method: 'PUT',
-      body: JSON.stringify(workspaceData),
-    })
-  },
-
-  async deleteWorkspace(workspaceId: number): Promise<void> {
-    return apiRequest<void>(`/workspaces/${workspaceId}`, {
-      method: 'DELETE',
-    })
-  },
-
-  async inviteUserToWorkspace(workspaceId: number, invite: WorkspaceMemberInvite): Promise<void> {
-    return apiRequest<void>(`/workspaces/${workspaceId}/invite`, {
-      method: 'POST',
-      body: JSON.stringify(invite),
-    })
-  },
-
-  async removeUserFromWorkspace(workspaceId: number, userId: number): Promise<void> {
-    return apiRequest<void>(`/workspaces/${workspaceId}/members/${userId}`, {
-      method: 'DELETE',
-    })
-  },
-
-  async getWorkspaceMembers(workspaceId: number): Promise<any[]> {
-    return apiRequest<any[]>(`/workspaces/${workspaceId}/members`)
-  },
-} 
+}
