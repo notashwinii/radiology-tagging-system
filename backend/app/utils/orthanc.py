@@ -1,11 +1,7 @@
-import os
 import requests
 from typing import Optional
 
-# Orthanc configuration
-ORTHANC_URL = os.getenv("ORTHANC_URL", "http://localhost:8042")
-ORTHANC_USERNAME = os.getenv("ORTHANC_USERNAME", "orthancadmin")
-ORTHANC_PASSWORD = os.getenv("ORTHANC_PASSWORD", "change_this_password")
+from app.core.settings import ORTHANC_PASSWORD, ORTHANC_URL, ORTHANC_USERNAME
 
 class OrthancClient:
     def __init__(self):

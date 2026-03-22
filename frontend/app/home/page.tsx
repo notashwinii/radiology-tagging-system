@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/auth-context'
 import Layout from '@/components/layout'
 import LoadingScreen from '@/components/loading-screen'
+import { API_BASE_URL } from '@/lib/config'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Plus, FolderOpen, Users, Calendar } from 'lucide-react'
@@ -60,7 +61,7 @@ export default function HomePage() {
         return
       }
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/workspaces`, {
+      const response = await fetch(`${API_BASE_URL}/workspaces`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -87,7 +88,7 @@ export default function HomePage() {
   const handleCreateWorkspace = async (workspaceData: { name: string; description: string }) => {
     try {
       const token = localStorage.getItem('access-token')
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/workspaces`, {
+      const response = await fetch(`${API_BASE_URL}/workspaces`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

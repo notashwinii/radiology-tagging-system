@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from app.schemas.image import ImageCreate, ImageResponse, ImageUpdate
 from app.core.dependencies import get_db, oauth2_scheme
+from app.core.settings import ORTHANC_PASSWORD, ORTHANC_URL, ORTHANC_USERNAME
 from app.models.image import Image
 from app.models.user import User
 from app.models.project import Project
@@ -10,17 +11,12 @@ from app.models.folder import Folder
 from app.api.endpoints.user.functions import get_current_user
 from app.api.endpoints.project.functions import get_project
 import requests
-import os
 from fastapi.responses import StreamingResponse
 import uuid
 from io import BytesIO
 import struct
 
 router = APIRouter(prefix="/images", tags=["images"])
-
-ORTHANC_URL = os.getenv("ORTHANC_URL", "http://localhost:8042")
-ORTHANC_USERNAME = os.getenv("ORTHANC_USERNAME", "orthanc")
-ORTHANC_PASSWORD = os.getenv("ORTHANC_PASSWORD", "orthanc")
 
 def upload_to_orthanc(file):
     """Upload DICOM file to Orthanc server"""

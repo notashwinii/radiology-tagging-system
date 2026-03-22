@@ -5,6 +5,7 @@ from app.schemas.annotation import (
     AnnotationCreate, AnnotationUpdate, AnnotationResponse, AnnotationHistoryResponse
 )
 from app.core.dependencies import get_db, oauth2_scheme
+from app.core.settings import ORTHANC_PASSWORD, ORTHANC_URL, ORTHANC_USERNAME
 from app.models.annotation import Annotation, AnnotationHistory, ReviewStatus
 from app.models.user import User
 from app.models.image import Image
@@ -13,14 +14,8 @@ import json
 import zipfile
 import io
 from datetime import datetime
-import os
 import requests
 import struct
-
-# Orthanc configuration (copied from image router)
-ORTHANC_URL = os.getenv("ORTHANC_URL", "http://localhost:8042")
-ORTHANC_USERNAME = os.getenv("ORTHANC_USERNAME", "orthancadmin")
-ORTHANC_PASSWORD = os.getenv("ORTHANC_PASSWORD", "change_this_password")
 
 def get_orthanc_instance(orthanc_id: str) -> bytes:
     """Download DICOM file from Orthanc server"""

@@ -5,6 +5,7 @@ import cornerstone from 'cornerstone-core';
 import cornerstoneTools from 'cornerstone-tools';
 import dicomParser from 'dicom-parser';
 import cornerstoneWADOImageLoader from 'cornerstone-wado-image-loader';
+import { API_BASE_URL } from '@/lib/config';
 import { useRouter } from 'next/navigation';
 import cornerstoneMath from 'cornerstone-math';
 import Hammer from 'hammerjs';
@@ -94,7 +95,7 @@ const DicomViewer: React.FC<DicomViewerProps> = ({ imageId, activeTool, onErase,
     cornerstone.enable(element);
 
     // Use the standard wadouri loader
-    const imageUrl = `${process.env.NEXT_PUBLIC_API_URL}/images/wado/${imageId}`;
+    const imageUrl = `${API_BASE_URL}/images/wado/${imageId}`;
     const cornerstoneImageId = `wadouri:${imageUrl}`;
     console.log('[DicomViewer] Loading image', cornerstoneImageId);
 

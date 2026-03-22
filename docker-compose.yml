@@ -21,9 +21,17 @@ services:
       - "4242:4242"  # DICOM port
     volumes:
       - orthanc_data:/var/lib/orthanc/db
-      - ./orthanc-config.json:/etc/orthanc/orthanc.json:ro
     environment:
-      - ORTHANC_NAME=radiology-orthanc
+      ORTHANC_NAME: radiology-orthanc
+      ORTHANC__AUTHENTICATION_ENABLED: "true"
+      ORTHANC__REMOTE_ACCESS_ALLOWED: "true"
+      ORTHANC__DICOM_AET: "ORTHANC"
+      ORTHANC__DICOM_PORT: 4242
+      ORTHANC__HTTP_PORT: 8042
+      ORTHANC__DICOM_WEB__ENABLE: "true"
+      ORTHANC__DICOM_WEB__ROOT: "/dicom-web/"
+      ORTHANC__REGISTERED_USERS: >-
+        {"${ORTHANC_USERNAME}":"${ORTHANC_PASSWORD}"}
     restart: unless-stopped
 
 volumes:
