@@ -5,13 +5,13 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_DB: radiology_db
-      POSTGRES_USER: radiology_user
-      POSTGRES_PASSWORD: radiology_password
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${DB_PORT}:5432"
 
   # Orthanc DICOM Server
   orthanc:
@@ -28,4 +28,4 @@ services:
 
 volumes:
   postgres_data:
-  orthanc_data: 
+  orthanc_data:
