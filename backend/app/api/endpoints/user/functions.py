@@ -1,21 +1,19 @@
-from fastapi import HTTPException, status, Depends
+from fastapi import Depends, HTTPException, status
 from typing import Annotated
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-# from auth import models, schemas
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 
-# import 
 from app.models import user as UserModel
 from app.schemas.user import UserCreate, UserUpdate, Token, UserLogin
 from app.core.settings import SECRET_KEY, REFRESH_SECRET_KEY, ALGORITHM
 from app.core.settings import ACCESS_TOKEN_EXPIRE_MINUTES
 from app.core.dependencies import get_db, oauth2_scheme
 
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 # get user by email 
 def get_user_by_email(db: Session, email: str):
@@ -28,7 +26,6 @@ def get_user_by_id(db: Session, user_id: int):
         raise HTTPException(status_code=404, detail="User not found")
     return db_user
 
-# crete new user 
 def create_new_user(db: Session, user: UserCreate):
     hashed_password = pwd_context.hash(user.password)
     new_user = UserModel.User(email=user.email, password=hashed_password, first_name=user.first_name, last_name=user.last_name)
@@ -61,7 +58,6 @@ def delete_user(db: Session, user_id: int):
     # db.refresh(db_user)
     return {"msg": f"{db_user.email} deleted successfully"}
 
-# =====================> login/logout <============================
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 

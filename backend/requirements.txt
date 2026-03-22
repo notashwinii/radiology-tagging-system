@@ -1,6 +1,6 @@
 annotated-types
 anyio
-bcrypt
+argon2-cffi
 certifi
 click
 dnspython

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 from app.utils.constant.globals import UserRole
@@ -7,12 +7,12 @@ class UserBase(BaseModel):
 	email: str
 
 class UserCreate(UserBase):
-	password: str
+	password: str = Field(min_length=12, max_length=1024)
 	first_name: str | None = None
 	last_name: str | None = None
 
 class UserLogin(UserBase):
-	password: str
+	password: str = Field(min_length=12, max_length=1024)
 
 class User(UserBase):
 	id: int
@@ -44,6 +44,5 @@ class Token(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str
-
 
 
