@@ -19,7 +19,7 @@ class User(CommonModel):
 	owned_projects = relationship("Project", foreign_keys="Project.owner_id", back_populates="owner")
 	projects = relationship("Project", secondary="project_users", back_populates="members")
 	uploaded_images = relationship("Image", foreign_keys="Image.uploader_id", back_populates="uploader")
-	assigned_images = relationship("Image", foreign_keys="Image.assigned_user_id")
+	assigned_images = relationship("Image", foreign_keys="Image.assigned_user_id", back_populates="assigned_user")
 	annotations = relationship("Annotation", foreign_keys="Annotation.user_id", back_populates="user")
 	reviewed_annotations = relationship("Annotation", foreign_keys="Annotation.reviewer_id", back_populates="reviewer")
 	annotation_history = relationship("AnnotationHistory", foreign_keys="AnnotationHistory.changed_by", back_populates="user")

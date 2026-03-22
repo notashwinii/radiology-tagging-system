@@ -21,5 +21,5 @@ class Image(CommonModel):
                             uploader_id], back_populates="uploaded_images")
     project = relationship("Project", back_populates="images")
     folder = relationship("Folder", back_populates="images")
-    assigned_user = relationship("User", foreign_keys=[assigned_user_id])
+    assigned_user = relationship("User", foreign_keys=[assigned_user_id], back_populates="assigned_images")
     annotations = relationship("Annotation", back_populates="image")

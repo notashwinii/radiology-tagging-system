@@ -6,8 +6,9 @@ import os
 # Add the current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from app.core.database import engine
-from app.models import Base
+from app.core.database import Base, engine
+from app.models import Annotation, AnnotationHistory, AuditLog, Image, Project, User, Workspace, workspace_members
+from app.models.folder import Folder
 
 def create_tables():
     try:
