@@ -53,7 +53,7 @@ class Settings(BaseSettings):
             username=self.db_user,
             password=self.db_password,
             host=self.db_host,
-            port=str(self.db_port),
+            port=self.db_port,
             path=f"/{self.db_name}",
         ).unicode_string()
 
