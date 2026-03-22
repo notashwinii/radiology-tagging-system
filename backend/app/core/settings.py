@@ -28,6 +28,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(get_env("ACCESS_TOKEN_EXPIRE_MINUTES"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(get_env("REFRESH_TOKEN_EXPIRE_DAYS"))
 
 FRONTEND_URL = get_env("FRONTEND_URL")
+APP_BASE_URL = get_env("APP_BASE_URL")
 
 
 def get_cors_origins() -> list[str]:
@@ -45,6 +46,10 @@ BACKEND_CORS_ORIGINS = get_cors_origins()
 ORTHANC_URL = get_env("ORTHANC_URL")
 ORTHANC_USERNAME = get_env("ORTHANC_USERNAME")
 ORTHANC_PASSWORD = get_env("ORTHANC_PASSWORD")
+RESEND_API_KEY = get_env("RESEND_API_KEY")
+EMAIL_FROM = get_env("EMAIL_FROM")
+VERIFICATION_TOKEN_EXPIRE_HOURS = int(get_env("VERIFICATION_TOKEN_EXPIRE_HOURS"))
+VERIFICATION_RESEND_COOLDOWN_SECONDS = int(get_env("VERIFICATION_RESEND_COOLDOWN_SECONDS"))
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
