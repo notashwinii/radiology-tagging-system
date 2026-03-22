@@ -29,6 +29,7 @@ from app.services.email import EmailDeliveryError, send_verification_email
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 EMAIL_VERIFICATION_PURPOSE = "email_verification"
+MAX_PASSWORD_LENGTH = 128
 
 
 def build_error_detail(code: str, message: str, **extra):
@@ -72,6 +73,15 @@ def create_verification_token(db: Session, user_id: int) -> str:
 
 
 def create_new_user(db: Session, user: UserCreate) -> RegistrationResponse:
+    if len(user.password) > MAX_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=build_error_detail(
+                "password_too_long",
+                f"Password must be at most {MAX_PASSWORD_LENGTH} characters.",
+            ),
+        )
+
     hashed_password = pwd_context.hash(user.password)
     new_user = UserModel.User(
         email=user.email,
@@ -131,6 +141,8 @@ def verify_password(plain_password, hashed_password):
 
 
 def authenticate_user(db: Session, user: UserLogin):
+    if len(user.password) > MAX_PASSWORD_LENGTH:
+        return False
     member = get_user_by_email(db, user.email)
     if not member:
         return False
