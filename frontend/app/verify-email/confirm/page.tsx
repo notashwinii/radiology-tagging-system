@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -16,15 +16,18 @@ export default function VerifyEmailConfirmPage() {
   const [successMessage, setSuccessMessage] = useState("")
   const [verifiedEmail, setVerifiedEmail] = useState("")
   const [error, setError] = useState("")
+  const hasVerified = useRef(false)
 
   useEffect(() => {
     const verify = async () => {
+      if (hasVerified.current) return
       if (!token) {
         setError("Verification token is missing.")
         setLoading(false)
         return
       }
 
+      hasVerified.current = true
       try {
         const response = await api.verifyEmail(token)
         setSuccessMessage(response.message)
