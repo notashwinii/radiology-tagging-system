@@ -21,8 +21,8 @@ class User(CommonModel):
 	uploaded_images = relationship("Image", foreign_keys="Image.uploader_id", back_populates="uploader")
 	assigned_images = relationship("Image", foreign_keys="Image.assigned_user_id")
 	annotations = relationship("Annotation", foreign_keys="Annotation.user_id", back_populates="user")
-	reviewed_annotations = relationship("Annotation", foreign_keys="Annotation.reviewer_id")
-	annotation_history = relationship("AnnotationHistory", foreign_keys="AnnotationHistory.changed_by")
+	reviewed_annotations = relationship("Annotation", foreign_keys="Annotation.reviewer_id", back_populates="reviewer")
+	annotation_history = relationship("AnnotationHistory", foreign_keys="AnnotationHistory.changed_by", back_populates="user")
 	owned_workspaces = relationship("Workspace", foreign_keys="Workspace.owner_id", back_populates="owner")
 	workspaces = relationship("Workspace", secondary="workspace_members", back_populates="members")
 
@@ -30,4 +30,3 @@ class User(CommonModel):
 		return f"{self.email}"
 	
 metadata = Base.metadata
-

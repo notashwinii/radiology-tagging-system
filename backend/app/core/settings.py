@@ -28,11 +28,19 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(get_env("ACCESS_TOKEN_EXPIRE_MINUTES"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(get_env("REFRESH_TOKEN_EXPIRE_DAYS"))
 
 FRONTEND_URL = get_env("FRONTEND_URL")
-BACKEND_CORS_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv("BACKEND_CORS_ORIGINS", FRONTEND_URL).split(",")
-    if origin.strip()
-]
+
+
+def get_cors_origins() -> list[str]:
+    configured_origins = os.getenv("BACKEND_CORS_ORIGINS", FRONTEND_URL)
+    origins = []
+    for origin in configured_origins.split(","):
+        cleaned = origin.strip().rstrip("/")
+        if cleaned and cleaned not in origins:
+            origins.append(cleaned)
+    return origins
+
+
+BACKEND_CORS_ORIGINS = get_cors_origins()
 
 ORTHANC_URL = get_env("ORTHANC_URL")
 ORTHANC_USERNAME = get_env("ORTHANC_USERNAME")

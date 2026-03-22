@@ -24,8 +24,8 @@ class Annotation(CommonModel):
     timestamp = Column(DateTime(timezone=True))
 
     image = relationship("Image", back_populates="annotations")
-    user = relationship("User", foreign_keys=[user_id])
-    reviewer = relationship("User", foreign_keys=[reviewer_id])
+    user = relationship("User", foreign_keys=[user_id], back_populates="annotations")
+    reviewer = relationship("User", foreign_keys=[reviewer_id], back_populates="reviewed_annotations")
     history = relationship("AnnotationHistory", back_populates="annotation")
 
 class AnnotationHistory(CommonModel):
@@ -37,4 +37,4 @@ class AnnotationHistory(CommonModel):
     changed_at = Column(DateTime(timezone=True))
 
     annotation = relationship("Annotation", back_populates="history")
-    user = relationship("User") 
+    user = relationship("User", foreign_keys=[changed_by], back_populates="annotation_history")
